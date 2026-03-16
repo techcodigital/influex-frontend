@@ -6,6 +6,25 @@ import { useRouter, usePathname } from "next/navigation";
 
 const API_BASE = "http://54.252.201.93:5000/api";
 
+// ── Plan limits (same as PostCampaignPage) ──
+const PLAN_LIMITS: Record<string, { label: string; campaigns: number; tokens: number }> = {
+  free:          { label: "Free",  campaigns: 2,   tokens: 200   },
+  pro:           { label: "Pro",   campaigns: 10,  tokens: 1000  },
+  pro_plus:      { label: "Pro+",  campaigns: 25,  tokens: 2500  },
+  pro_year:      { label: "Pro",   campaigns: 120, tokens: 12000 },
+  pro_plus_year: { label: "Pro+",  campaigns: 250, tokens: 25000 },
+};
+
+const toCanonical = (s: string): string => {
+  if (!s) return "free";
+  const v = s.toLowerCase().trim();
+  if (v === "pro+" || v === "pro_plus" || v === "proplus") return "pro_plus";
+  if (v === "pro+year" || v === "pro_plus_year" || v === "proplusyear") return "pro_plus_year";
+  if (v === "proyear" || v === "pro_year") return "pro_year";
+  if (v === "pro") return "pro";
+  return "free";
+};
+
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -15,6 +34,9 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Brand plan stats
+  const [campsUsed, setCampsUsed] = useState(0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -30,10 +52,24 @@ export default function Navbar() {
         .then(data => { if (data.success && data.profile) setProfile(data.profile); })
         .catch(() => {});
 
+      // Fetch brand campaign usage this month
+      if (parsedUser.role?.toLowerCase() === "brand") {
+        fetch(`${API_BASE}/campaigns/my`, { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.json())
+          .then(data => {
+            const list: any[] = data.data || data.campaigns || [];
+            const now = new Date();
+            const thisMonth = list.filter((c: any) => {
+              const d = new Date(c.createdAt || c.created_at || 0);
+              return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            });
+            setCampsUsed(thisMonth.length);
+          })
+          .catch(() => {});
+      }
+
       if (pathname?.startsWith("/notification")) {
-        // ✅ Notification page pe hain — sab read mark karo aur 0 dikhao
         setUnreadCount(0);
-        // Backend pe bhi sab read mark karo silently
         fetch(`${API_BASE}/notification`, { headers: { Authorization: `Bearer ${token}` } })
           .then(r => r.json())
           .then(data => {
@@ -53,13 +89,10 @@ export default function Navbar() {
         .then(r => r.json())
         .then(data => {
           const notifs = data.notifications || data.data || [];
-          // ✅ cb_notif_status se locally read/accepted wale bhi check karo
           const localRead: string[] = JSON.parse(localStorage.getItem("readNotifIds") || "[]");
           const cbNotifStatus: Record<string, string> = JSON.parse(localStorage.getItem("cb_notif_status") || "{}");
           const unread = notifs.filter((n: any) =>
-            !n.read &&
-            !localRead.includes(n._id) &&
-            !cbNotifStatus[n._id]  // cb_notif_status mein hai matlab read ho chuka hai
+            !n.read && !localRead.includes(n._id) && !cbNotifStatus[n._id]
           );
           setUnreadCount(unread.length);
         })
@@ -75,7 +108,6 @@ export default function Navbar() {
     if (typeof window === "undefined") return;
     const handleStorage = (e: StorageEvent) => {
       if (e.key === "notif_all_read") setUnreadCount(0);
-      // ✅ NotificationsPage se real-time count update
       if (e.key === "notif_unread_count" && e.newValue !== null) {
         setUnreadCount(Number(e.newValue));
       }
@@ -125,6 +157,18 @@ export default function Navbar() {
   const displayImage = profile?.profileImage || user?.profileImage || null;
   const isActive = (path: string) => pathname?.startsWith(path);
 
+  // ── Brand plan stats ──
+  const getBrandPlanStats = () => {
+    const stored   = JSON.parse(localStorage.getItem("cb_user") || "{}");
+    const subbed   = stored.isSubscribed ?? false;
+    const ap       = stored.activePlan ?? null;
+    const plan     = subbed && ap ? (PLAN_LIMITS[toCanonical(ap)] ?? PLAN_LIMITS["free"]) : PLAN_LIMITS["free"];
+    const bits     = stored.bits ?? plan.tokens;
+    const campsLeft  = Math.max(0, plan.campaigns - campsUsed);
+    const tokensLeft = subbed ? plan.tokens : Math.max(0, bits);
+    return { plan, campsLeft, tokensLeft };
+  };
+
   return (
     <>
       <style>{`
@@ -172,7 +216,7 @@ export default function Navbar() {
         .nav-avatar-name { font-size: 13px; font-weight: 600; color: #111; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         @media(max-width:480px){ .nav-avatar-name{ display: none; } }
 
-        .nav-dropdown { position: absolute; top: calc(100% + 8px); right: 0; width: 230px; background: #fff; border-radius: 16px; border: 1.5px solid #ebebeb; box-shadow: 0 8px 30px rgba(0,0,0,0.1); padding: 8px; z-index: 9999; animation: dropIn 0.15s ease; }
+        .nav-dropdown { position: absolute; top: calc(100% + 8px); right: 0; width: 240px; background: #fff; border-radius: 16px; border: 1.5px solid #ebebeb; box-shadow: 0 8px 30px rgba(0,0,0,0.1); padding: 8px; z-index: 9999; animation: dropIn 0.15s ease; }
         @keyframes dropIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
         .nav-dd-user { padding: 10px 12px 12px; }
         .nav-dd-username { font-size: 14px; font-weight: 700; color: #111; margin: 0 0 4px; }
@@ -185,6 +229,14 @@ export default function Navbar() {
         .nav-dd-item.upgrade-dd { background: linear-gradient(135deg, #ede9fe, #e0e7ff); color: #4f46e5; font-weight: 700; }
         .nav-dd-item.upgrade-dd:hover { background: linear-gradient(135deg, #ddd6fe, #c7d2fe); }
         .nav-dd-section { font-size: 10px; font-weight: 700; color: #bbb; text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 12px 4px; }
+
+        /* ── Brand plan mini box ── */
+        .nav-plan-box { margin-top: 10px; background: #f8f7ff; border: 1.5px solid #e8e5ff; border-radius: 10px; padding: 10px 12px; display: flex; gap: 0; }
+        .nav-plan-stat { flex: 1; text-align: center; }
+        .nav-plan-stat + .nav-plan-stat { border-left: 1px solid #e8e5ff; }
+        .nav-plan-stat-label { font-size: 9px; font-weight: 700; color: #bbb; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 3px; }
+        .nav-plan-stat-val { font-size: 15px; font-weight: 800; line-height: 1; }
+        .nav-plan-stat-sub { font-size: 9px; color: #aaa; font-weight: 500; margin-top: 1px; }
 
         .nav-login { font-size: 13px; font-weight: 600; color: #666; text-decoration: none; padding: 8px 14px; border-radius: 10px; transition: all 0.2s; }
         .nav-login:hover { color: #111; background: #f5f5f0; }
@@ -216,8 +268,6 @@ export default function Navbar() {
           {/* CENTER LINKS */}
           {user ? (
             <div className="nav-links">
-
-              {/* INFLUENCER LINKS — Deals/Contracts/Rewards moved to profile dropdown */}
               {isInfluencer && (
                 <>
                   <Link href="/discovery"    className={`nav-link ${isActive("/discovery") ? "active" : ""}`}>Discover</Link>
@@ -227,8 +277,6 @@ export default function Navbar() {
                   </Link>
                 </>
               )}
-
-              {/* BRAND LINKS — More dropdown removed, Deals/Contracts moved to profile dropdown */}
               {isBrand && (
                 <>
                   <Link href="/browse"       className={`nav-link ${isActive("/browse") ? "active" : ""}`}>Discover</Link>
@@ -239,8 +287,6 @@ export default function Navbar() {
                   </Link>
                 </>
               )}
-
-              {/* ADMIN LINKS */}
               {isAdmin && (
                 <>
                   <Link href="/admin"        className={`nav-link ${isActive("/admin") ? "active" : ""}`}>Dashboard</Link>
@@ -253,7 +299,6 @@ export default function Navbar() {
                   </Link>
                 </>
               )}
-
             </div>
           ) : <div />}
 
@@ -281,6 +326,32 @@ export default function Navbar() {
                       <div className="nav-dd-user">
                         <p className="nav-dd-username">{displayName}</p>
                         <span className="nav-dd-role">{role}</span>
+
+                        {/* ── Brand plan mini stats box ── */}
+                        {isBrand && (() => {
+                          const { plan, campsLeft, tokensLeft } = getBrandPlanStats();
+                          const campColor = campsLeft === 0 ? "#ef4444" : campsLeft <= 2 ? "#f59e0b" : "#4f46e5";
+                          const fmtNum = (n: number) => n >= 1000 ? `${(n/1000).toFixed(n%1000===0?0:1)}k` : String(n);
+                          return (
+                            <div className="nav-plan-box">
+                              <div className="nav-plan-stat">
+                                <div className="nav-plan-stat-label">Campaigns</div>
+                                <div className="nav-plan-stat-val" style={{ color: campColor }}>{campsLeft}</div>
+                                <div className="nav-plan-stat-sub">of {plan.campaigns} left</div>
+                              </div>
+                              <div className="nav-plan-stat">
+                                <div className="nav-plan-stat-label">Tokens</div>
+                                <div className="nav-plan-stat-val" style={{ color: "#7c3aed" }}>{fmtNum(tokensLeft)}</div>
+                                <div className="nav-plan-stat-sub">of {fmtNum(plan.tokens)}</div>
+                              </div>
+                              <div className="nav-plan-stat">
+                                <div className="nav-plan-stat-label">Plan</div>
+                                <div className="nav-plan-stat-val" style={{ color: "#111", fontSize: 13 }}>{plan.label}</div>
+                                <div className="nav-plan-stat-sub">current</div>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div className="nav-dd-sep" />
 
@@ -292,7 +363,6 @@ export default function Navbar() {
                       <Link href="/my-profile"    className="nav-dd-item" onClick={() => setDropdownOpen(false)}>✏️ Edit Profile</Link>
                       <Link href="/setup-profile" className="nav-dd-item" onClick={() => setDropdownOpen(false)}>👤 View Profile</Link>
 
-                      {/* Influencer extras — Deals, Contracts, Rewards in dropdown */}
                       {isInfluencer && (
                         <>
                           <div className="nav-dd-sep" />
@@ -303,21 +373,16 @@ export default function Navbar() {
                         </>
                       )}
 
-                      {/* Brand extras — Deals, Contracts, tools moved here */}
                       {isBrand && (
                         <>
                           <div className="nav-dd-sep" />
                           <div className="nav-dd-section">Brand Tools</div>
                           <Link href="/deals"          className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🤝 Deals</Link>
                           <Link href="/contracts"      className="nav-dd-item" onClick={() => setDropdownOpen(false)}>📄 Contracts</Link>
-                          <Link href="/invite"         className="nav-dd-item" onClick={() => setDropdownOpen(false)}>📩 Invite Creators</Link>
-                          <Link href="/contact"        className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🔓 Unlock Contacts</Link>
-                          <Link href="/smart-match"    className="nav-dd-item" onClick={() => setDropdownOpen(false)}>✨ Smart Match</Link>
                           <Link href="/campaigns/post" className="nav-dd-item" onClick={() => setDropdownOpen(false)}>📋 Post Campaign</Link>
                         </>
                       )}
 
-                      {/* Admin */}
                       {isAdmin && (
                         <>
                           <Link href="/admin"          className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🛡️ Admin Panel</Link>
@@ -348,7 +413,6 @@ export default function Navbar() {
         {/* MOBILE MENU */}
         {user && (
           <div className={`nav-mobile ${mobileMenuOpen ? "open" : ""}`}>
-
             <div className="nav-mobile-section">Main</div>
             {isInfluencer && <Link href="/discovery"    className={`nav-mobile-link ${isActive("/discovery") ? "active" : ""}`}>Discover</Link>}
             {isBrand      && <Link href="/browse"       className={`nav-mobile-link ${isActive("/browse") ? "active" : ""}`}>Discover Creators</Link>}
@@ -367,9 +431,7 @@ export default function Navbar() {
             {isBrand && (
               <>
                 <div className="nav-mobile-section">Brand Tools</div>
-                {/* <Link href="/invite"      className={`nav-mobile-link ${isActive("/invite") ? "active" : ""}`}>Invite Creators</Link>
-                <Link href="/contact"     className={`nav-mobile-link ${isActive("/contact") ? "active" : ""}`}>Unlock Contacts</Link> */}
-                <Link href="/smart-match" className={`nav-mobile-link ${isActive("/smart-match") ? "active" : ""}`}>Smart Match</Link>
+                <Link href="/smart-match"    className={`nav-mobile-link ${isActive("/smart-match") ? "active" : ""}`}>Smart Match</Link>
                 <Link href="/campaigns/post" className={`nav-mobile-link ${isActive("/campaigns/post") ? "active" : ""}`}>Post Campaign</Link>
               </>
             )}
@@ -388,7 +450,8 @@ export default function Navbar() {
             <button
               className="nav-mobile-link"
               style={{ color: "#ef4444", border: "none", background: "none", cursor: "pointer", textAlign: "left", width: "100%", fontFamily: "inherit" }}
-              onClick={handleLogout}>
+              onClick={handleLogout}
+            >
               Logout
             </button>
           </div>
@@ -397,6 +460,407 @@ export default function Navbar() {
     </>
   );
 }
+
+
+// "use client";
+
+// import { useEffect, useState, useRef } from "react";
+// import Link from "next/link";
+// import { useRouter, usePathname } from "next/navigation";
+
+// const API_BASE = "http://54.252.201.93:5000/api";
+
+// export default function Navbar() {
+//   const pathname = usePathname();
+//   const router = useRouter();
+//   const [user, setUser] = useState<any>(null);
+//   const [profile, setProfile] = useState<any>(null);
+//   const [dropdownOpen, setDropdownOpen] = useState(false);
+//   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+//   const [unreadCount, setUnreadCount] = useState(0);
+//   const dropdownRef = useRef<HTMLDivElement>(null);
+
+//   useEffect(() => {
+//     if (typeof window === "undefined") return;
+//     const storedUser = localStorage.getItem("cb_user");
+//     const parsedUser = JSON.parse(storedUser || "{}");
+//     const token = parsedUser.token || localStorage.getItem("token");
+
+//     if (storedUser && token) {
+//       setUser(parsedUser);
+
+//       fetch(`${API_BASE}/profile/me`, { headers: { Authorization: `Bearer ${token}` } })
+//         .then(r => r.json())
+//         .then(data => { if (data.success && data.profile) setProfile(data.profile); })
+//         .catch(() => {});
+
+//       if (pathname?.startsWith("/notification")) {
+//         // ✅ Notification page pe hain — sab read mark karo aur 0 dikhao
+//         setUnreadCount(0);
+//         // Backend pe bhi sab read mark karo silently
+//         fetch(`${API_BASE}/notification`, { headers: { Authorization: `Bearer ${token}` } })
+//           .then(r => r.json())
+//           .then(data => {
+//             const notifs = data.notifications || data.data || [];
+//             const unreadIds = notifs.filter((n: any) => !n.read).map((n: any) => n._id);
+//             unreadIds.forEach((id: string) => {
+//               fetch(`${API_BASE}/notification/read/${id}`, {
+//                 method: "PATCH",
+//                 headers: { Authorization: `Bearer ${token}` },
+//               }).catch(() => {});
+//             });
+//           }).catch(() => {});
+//         return;
+//       }
+
+//       fetch(`${API_BASE}/notification`, { headers: { Authorization: `Bearer ${token}` } })
+//         .then(r => r.json())
+//         .then(data => {
+//           const notifs = data.notifications || data.data || [];
+//           // ✅ cb_notif_status se locally read/accepted wale bhi check karo
+//           const localRead: string[] = JSON.parse(localStorage.getItem("readNotifIds") || "[]");
+//           const cbNotifStatus: Record<string, string> = JSON.parse(localStorage.getItem("cb_notif_status") || "{}");
+//           const unread = notifs.filter((n: any) =>
+//             !n.read &&
+//             !localRead.includes(n._id) &&
+//             !cbNotifStatus[n._id]  // cb_notif_status mein hai matlab read ho chuka hai
+//           );
+//           setUnreadCount(unread.length);
+//         })
+//         .catch(() => {});
+//     } else {
+//       setUser(null);
+//       setProfile(null);
+//       setUnreadCount(0);
+//     }
+//   }, [pathname]);
+
+//   useEffect(() => {
+//     if (typeof window === "undefined") return;
+//     const handleStorage = (e: StorageEvent) => {
+//       if (e.key === "notif_all_read") setUnreadCount(0);
+//       // ✅ NotificationsPage se real-time count update
+//       if (e.key === "notif_unread_count" && e.newValue !== null) {
+//         setUnreadCount(Number(e.newValue));
+//       }
+//     };
+//     window.addEventListener("storage", handleStorage);
+//     const wasRead = localStorage.getItem("notif_all_read");
+//     if (wasRead) setUnreadCount(0);
+//     return () => window.removeEventListener("storage", handleStorage);
+//   }, []);
+
+//   useEffect(() => {
+//     const handleClickOutside = (e: any) => {
+//       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setDropdownOpen(false);
+//     };
+//     document.addEventListener("mousedown", handleClickOutside);
+//     return () => document.removeEventListener("mousedown", handleClickOutside);
+//   }, []);
+
+//   useEffect(() => {
+//     setMobileMenuOpen(false);
+//     setDropdownOpen(false);
+//   }, [pathname]);
+
+//   if (pathname === "/" && user) return null;
+
+//   const handleLogout = () => {
+//     localStorage.removeItem("cb_user");
+//     localStorage.removeItem("token");
+//     localStorage.removeItem("appliedCampaigns");
+//     localStorage.removeItem("connectedCreators");
+//     localStorage.removeItem("readNotifIds");
+//     localStorage.removeItem("notif_all_read");
+//     setUser(null);
+//     setProfile(null);
+//     router.push("/");
+//   };
+
+//   const role         = user?.role?.toLowerCase();
+//   const isBrand      = role === "brand";
+//   const isAdmin      = role === "admin";
+//   const isInfluencer = role === "influencer";
+
+//   const displayName = isBrand
+//     ? (profile?.companyName || user?.companyName || user?.name || "User")
+//     : (profile?.name || user?.name || "User");
+
+//   const displayImage = profile?.profileImage || user?.profileImage || null;
+//   const isActive = (path: string) => pathname?.startsWith(path);
+
+//   return (
+//     <>
+//       <style>{`
+//         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+//         .nav {
+//           position: sticky; top: 0; z-index: 9999;
+//           background: #fff; border-bottom: 1px solid #ebebeb;
+//           font-family: 'Plus Jakarta Sans', sans-serif;
+//         }
+//         .nav-inner {
+//           max-width: 1280px; margin: 0 auto; padding: 0 24px;
+//           height: 64px; display: grid;
+//           grid-template-columns: auto 1fr auto;
+//           align-items: center; gap: 24px;
+//         }
+//         @media(max-width:900px){
+//           .nav-inner {
+//             grid-template-columns: auto auto;
+//             justify-content: space-between;
+//           }
+//           .nav-inner > *:nth-child(2) { display: none; }
+//         }
+
+//         .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; flex-shrink: 0; }
+//         .nav-logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, #4f46e5, #7c3aed); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 13px; flex-shrink: 0; }
+//         .nav-logo-text { font-weight: 800; font-size: 17px; color: #111; white-space: nowrap; }
+//         @media(max-width:480px){ .nav-logo-text{ font-size: 15px; } }
+
+//         .nav-links { display: flex; align-items: center; gap: 4px; justify-content: center; flex-wrap: nowrap; overflow-x: auto; }
+//         @media(max-width:900px){ .nav-links{ display: none; } }
+
+//         .nav-link { font-size: 12.5px; font-weight: 600; color: #777; text-decoration: none; padding: 6px 7px; border-radius: 9px; transition: all 0.18s; white-space: nowrap; display: flex; align-items: center; gap: 5px; }
+//         .nav-link:hover { color: #111; background: #f5f5f3; }
+//         .nav-link.active { color: #4f46e5; background: #eef2ff; }
+
+//         .nav-notif-badge { background: #ef4444; color: #fff; border-radius: 100px; font-size: 9px; padding: 1px 5px; font-weight: 800; display: inline-block; }
+
+//         .nav-right { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+
+//         .nav-avatar-btn { display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border-radius: 100px; border: 1.5px solid #ebebeb; background: none; cursor: pointer; transition: all 0.2s; }
+//         .nav-avatar-btn:hover { border-color: #c7d2fe; background: #f8f7ff; }
+//         .nav-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #4f46e5, #7c3aed); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: #fff; overflow: hidden; flex-shrink: 0; }
+//         .nav-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+//         .nav-avatar-name { font-size: 13px; font-weight: 600; color: #111; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+//         @media(max-width:480px){ .nav-avatar-name{ display: none; } }
+
+//         .nav-dropdown { position: absolute; top: calc(100% + 8px); right: 0; width: 230px; background: #fff; border-radius: 16px; border: 1.5px solid #ebebeb; box-shadow: 0 8px 30px rgba(0,0,0,0.1); padding: 8px; z-index: 9999; animation: dropIn 0.15s ease; }
+//         @keyframes dropIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+//         .nav-dd-user { padding: 10px 12px 12px; }
+//         .nav-dd-username { font-size: 14px; font-weight: 700; color: #111; margin: 0 0 4px; }
+//         .nav-dd-role { font-size: 10px; color: #fff; text-transform: uppercase; letter-spacing: 0.08em; margin: 0; display: inline-block; padding: 2px 8px; border-radius: 100px; background: linear-gradient(135deg, #4f46e5, #7c3aed); font-weight: 700; }
+//         .nav-dd-sep { height: 1px; background: #f0f0f0; margin: 6px 0; }
+//         .nav-dd-item { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 10px; font-size: 13px; font-weight: 600; color: #444; text-decoration: none; transition: background 0.15s; cursor: pointer; border: none; background: none; width: 100%; text-align: left; font-family: 'Plus Jakarta Sans', sans-serif; }
+//         .nav-dd-item:hover { background: #f5f5f0; color: #111; }
+//         .nav-dd-item.danger { color: #ef4444; }
+//         .nav-dd-item.danger:hover { background: #fff5f5; }
+//         .nav-dd-item.upgrade-dd { background: linear-gradient(135deg, #ede9fe, #e0e7ff); color: #4f46e5; font-weight: 700; }
+//         .nav-dd-item.upgrade-dd:hover { background: linear-gradient(135deg, #ddd6fe, #c7d2fe); }
+//         .nav-dd-section { font-size: 10px; font-weight: 700; color: #bbb; text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 12px 4px; }
+
+//         .nav-login { font-size: 13px; font-weight: 600; color: #666; text-decoration: none; padding: 8px 14px; border-radius: 10px; transition: all 0.2s; }
+//         .nav-login:hover { color: #111; background: #f5f5f0; }
+//         .nav-join { font-size: 13px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 9px 18px; border-radius: 10px; text-decoration: none; transition: all 0.2s; box-shadow: 0 2px 10px rgba(79,70,229,0.3); }
+//         .nav-join:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(79,70,229,0.4); }
+
+//         .nav-hamburger { display: none; width: 40px; height: 40px; border-radius: 10px; border: 1.5px solid #ebebeb; background: none; cursor: pointer; align-items: center; justify-content: center; flex-direction: column; gap: 5px; padding: 10px; transition: all 0.2s; }
+//         @media(max-width:900px){ .nav-hamburger{ display: flex; } }
+//         .nav-hamburger:hover { background: #f5f5f0; }
+//         .nav-hamburger span { display: block; width: 18px; height: 2px; background: #111; border-radius: 2px; }
+
+//         .nav-mobile { display: none; background: #fff; border-top: 1px solid #ebebeb; padding: 12px 24px 20px; flex-direction: column; gap: 4px; max-height: 85vh; overflow-y: auto; }
+//         .nav-mobile.open { display: flex; }
+//         .nav-mobile-section { font-size: 10px; font-weight: 700; color: #bbb; text-transform: uppercase; letter-spacing: 0.08em; padding: 14px 0 6px; }
+//         .nav-mobile-link { font-size: 14px; font-weight: 600; color: #555; text-decoration: none; padding: 11px 0; border-bottom: 1px solid #f5f5f5; transition: color 0.2s; display: flex; align-items: center; gap: 10px; }
+//         .nav-mobile-link:hover, .nav-mobile-link.active { color: #4f46e5; }
+//         .nav-mobile-upgrade { display: flex; align-items: center; gap: 8px; padding: 13px 0; border-bottom: 1px solid #f5f5f5; font-size: 14px; font-weight: 700; color: #4f46e5; text-decoration: none; }
+//       `}</style>
+
+//       <nav className="nav">
+//         <div className="nav-inner">
+
+//           {/* LOGO */}
+//           <Link href="/" className="nav-logo">
+//             <div className="nav-logo-icon">CB</div>
+//             <span className="nav-logo-text">CreatorBridge</span>
+//           </Link>
+
+//           {/* CENTER LINKS */}
+//           {user ? (
+//             <div className="nav-links">
+
+//               {/* INFLUENCER LINKS — Deals/Contracts/Rewards moved to profile dropdown */}
+//               {isInfluencer && (
+//                 <>
+//                   <Link href="/discovery"    className={`nav-link ${isActive("/discovery") ? "active" : ""}`}>Discover</Link>
+//                   <Link href="/messages"     className={`nav-link ${isActive("/messages") ? "active" : ""}`}>Messages</Link>
+//                   <Link href="/notification" className={`nav-link ${isActive("/notification") ? "active" : ""}`} onClick={() => setUnreadCount(0)}>
+//                     Notifications{unreadCount > 0 && <span className="nav-notif-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+//                   </Link>
+//                 </>
+//               )}
+
+//               {/* BRAND LINKS — More dropdown removed, Deals/Contracts moved to profile dropdown */}
+//               {isBrand && (
+//                 <>
+//                   <Link href="/browse"       className={`nav-link ${isActive("/browse") ? "active" : ""}`}>Discover</Link>
+//                   <Link href="/campaigns"    className={`nav-link ${isActive("/campaigns") ? "active" : ""}`}>Campaigns</Link>
+//                   <Link href="/messages"     className={`nav-link ${isActive("/messages") ? "active" : ""}`}>Messages</Link>
+//                   <Link href="/notification" className={`nav-link ${isActive("/notification") ? "active" : ""}`} onClick={() => setUnreadCount(0)}>
+//                     Notifications{unreadCount > 0 && <span className="nav-notif-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+//                   </Link>
+//                 </>
+//               )}
+
+//               {/* ADMIN LINKS */}
+//               {isAdmin && (
+//                 <>
+//                   <Link href="/admin"        className={`nav-link ${isActive("/admin") ? "active" : ""}`}>Dashboard</Link>
+//                   <Link href="/campaigns"    className={`nav-link ${isActive("/campaigns") ? "active" : ""}`}>Campaigns</Link>
+//                   <Link href="/deals"        className={`nav-link ${isActive("/deals") ? "active" : ""}`}>Deals</Link>
+//                   <Link href="/contracts"    className={`nav-link ${isActive("/contracts") ? "active" : ""}`}>Contracts</Link>
+//                   <Link href="/messages"     className={`nav-link ${isActive("/messages") ? "active" : ""}`}>Messages</Link>
+//                   <Link href="/notification" className={`nav-link ${isActive("/notification") ? "active" : ""}`} onClick={() => setUnreadCount(0)}>
+//                     Notifications{unreadCount > 0 && <span className="nav-notif-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+//                   </Link>
+//                 </>
+//               )}
+
+//             </div>
+//           ) : <div />}
+
+//           {/* RIGHT */}
+//           <div className="nav-right">
+//             {user ? (
+//               <>
+//                 <div style={{ position: "relative" }} ref={dropdownRef}>
+//                   <button className="nav-avatar-btn" onClick={() => setDropdownOpen(!dropdownOpen)}>
+//                     <div className="nav-avatar">
+//                       {displayImage ? (
+//                         <img src={displayImage} alt={displayName} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+//                       ) : (
+//                         <span>{displayName.charAt(0).toUpperCase()}</span>
+//                       )}
+//                     </div>
+//                     <span className="nav-avatar-name">{displayName}</span>
+//                     <svg width="12" height="12" fill="none" stroke="#aaa" viewBox="0 0 24 24">
+//                       <path strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+//                     </svg>
+//                   </button>
+
+//                   {dropdownOpen && (
+//                     <div className="nav-dropdown">
+//                       <div className="nav-dd-user">
+//                         <p className="nav-dd-username">{displayName}</p>
+//                         <span className="nav-dd-role">{role}</span>
+//                       </div>
+//                       <div className="nav-dd-sep" />
+
+//                       {/* Upgrade */}
+//                       <Link href="/upgrade" className="nav-dd-item upgrade-dd" onClick={() => setDropdownOpen(false)}>⚡ Upgrade Plan</Link>
+//                       <div className="nav-dd-sep" />
+
+//                       {/* Profile */}
+//                       <Link href="/my-profile"    className="nav-dd-item" onClick={() => setDropdownOpen(false)}>✏️ Edit Profile</Link>
+//                       <Link href="/setup-profile" className="nav-dd-item" onClick={() => setDropdownOpen(false)}>👤 View Profile</Link>
+
+//                       {/* Influencer extras — Deals, Contracts, Rewards in dropdown */}
+//                       {isInfluencer && (
+//                         <>
+//                           <div className="nav-dd-sep" />
+//                           <div className="nav-dd-section">My Work</div>
+//                           <Link href="/deals"     className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🤝 Deals</Link>
+//                           <Link href="/contracts" className="nav-dd-item" onClick={() => setDropdownOpen(false)}>📄 Contracts</Link>
+//                           <Link href="/rewards"   className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🎁 Rewards</Link>
+//                         </>
+//                       )}
+
+//                       {/* Brand extras — Deals, Contracts, tools moved here */}
+//                       {isBrand && (
+//                         <>
+//                           <div className="nav-dd-sep" />
+//                           <div className="nav-dd-section">Brand Tools</div>
+//                           <Link href="/deals"          className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🤝 Deals</Link>
+//                           <Link href="/contracts"      className="nav-dd-item" onClick={() => setDropdownOpen(false)}>📄 Contracts</Link>
+//                           {/* <Link href="/invite"         className="nav-dd-item" onClick={() => setDropdownOpen(false)}>📩 Invite Creators</Link>
+//                           <Link href="/contact"        className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🔓 Unlock Contacts</Link>
+//                           <Link href="/smart-match"    className="nav-dd-item" onClick={() => setDropdownOpen(false)}>✨ Smart Match</Link> */}
+//                           <Link href="/campaigns/post" className="nav-dd-item" onClick={() => setDropdownOpen(false)}>📋 Post Campaign</Link>
+//                         </>
+//                       )}
+
+//                       {/* Admin */}
+//                       {isAdmin && (
+//                         <>
+//                           <Link href="/admin"          className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🛡️ Admin Panel</Link>
+//                           <Link href="/campaigns/post" className="nav-dd-item" onClick={() => setDropdownOpen(false)}>📋 Post Campaign</Link>
+//                         </>
+//                       )}
+
+//                       <div className="nav-dd-sep" />
+//                       <Link href="/settings" className="nav-dd-item" onClick={() => setDropdownOpen(false)}>⚙️ Settings</Link>
+//                       <button className="nav-dd-item danger" onClick={handleLogout}>🚪 Logout</button>
+//                     </div>
+//                   )}
+//                 </div>
+
+//                 <button className="nav-hamburger" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Menu">
+//                   <span /><span /><span />
+//                 </button>
+//               </>
+//             ) : (
+//               <>
+//                 <Link href="/login" className="nav-login">Login</Link>
+//                 <Link href="/join"  className="nav-join">Join</Link>
+//               </>
+//             )}
+//           </div>
+//         </div>
+
+//         {/* MOBILE MENU */}
+//         {user && (
+//           <div className={`nav-mobile ${mobileMenuOpen ? "open" : ""}`}>
+
+//             <div className="nav-mobile-section">Main</div>
+//             {isInfluencer && <Link href="/discovery"    className={`nav-mobile-link ${isActive("/discovery") ? "active" : ""}`}>Discover</Link>}
+//             {isBrand      && <Link href="/browse"       className={`nav-mobile-link ${isActive("/browse") ? "active" : ""}`}>Discover Creators</Link>}
+//             {(isBrand||isAdmin) && <Link href="/campaigns" className={`nav-mobile-link ${isActive("/campaigns") ? "active" : ""}`}>Campaigns</Link>}
+//             {isInfluencer && <Link href="/apply"        className={`nav-mobile-link ${isActive("/apply") ? "active" : ""}`}>Applied Campaigns</Link>}
+//             <Link href="/messages"     className={`nav-mobile-link ${isActive("/messages") ? "active" : ""}`}>Messages</Link>
+//             <Link href="/notification" className={`nav-mobile-link ${isActive("/notification") ? "active" : ""}`} onClick={() => setUnreadCount(0)}>
+//               Notifications {unreadCount > 0 && <span className="nav-notif-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+//             </Link>
+
+//             <div className="nav-mobile-section">Work</div>
+//             <Link href="/deals"        className={`nav-mobile-link ${isActive("/deals") ? "active" : ""}`}>Deals</Link>
+//             <Link href="/contracts"    className={`nav-mobile-link ${isActive("/contracts") ? "active" : ""}`}>Contracts</Link>
+//             {isInfluencer && <Link href="/rewards" className={`nav-mobile-link ${isActive("/rewards") ? "active" : ""}`}>Rewards</Link>}
+
+//             {isBrand && (
+//               <>
+//                 <div className="nav-mobile-section">Brand Tools</div>
+//                 {/* <Link href="/invite"      className={`nav-mobile-link ${isActive("/invite") ? "active" : ""}`}>Invite Creators</Link>
+//                 <Link href="/contact"     className={`nav-mobile-link ${isActive("/contact") ? "active" : ""}`}>Unlock Contacts</Link> */}
+//                 <Link href="/smart-match" className={`nav-mobile-link ${isActive("/smart-match") ? "active" : ""}`}>Smart Match</Link>
+//                 <Link href="/campaigns/post" className={`nav-mobile-link ${isActive("/campaigns/post") ? "active" : ""}`}>Post Campaign</Link>
+//               </>
+//             )}
+
+//             {isAdmin && (
+//               <>
+//                 <div className="nav-mobile-section">Admin</div>
+//                 <Link href="/admin" className={`nav-mobile-link ${isActive("/admin") ? "active" : ""}`}>Admin Panel</Link>
+//               </>
+//             )}
+
+//             <div className="nav-mobile-section">Account</div>
+//             <Link href="/upgrade"    className="nav-mobile-upgrade">⚡ Upgrade Plan</Link>
+//             <Link href="/my-profile" className={`nav-mobile-link ${isActive("/my-profile") ? "active" : ""}`}>Edit Profile</Link>
+//             <Link href="/settings"   className={`nav-mobile-link ${isActive("/settings") ? "active" : ""}`}>Settings</Link>
+//             <button
+//               className="nav-mobile-link"
+//               style={{ color: "#ef4444", border: "none", background: "none", cursor: "pointer", textAlign: "left", width: "100%", fontFamily: "inherit" }}
+//               onClick={handleLogout}>
+//               Logout
+//             </button>
+//           </div>
+//         )}
+//       </nav>
+//     </>
+//   );
+// }
 
 
 // "use client";
