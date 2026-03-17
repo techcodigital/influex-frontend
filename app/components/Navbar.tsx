@@ -491,9 +491,9 @@ export default function Navbar() {
                           <div className="nav-dd-section">Brand Tools</div>
                           <Link href="/deals"          className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🤝 Deals</Link>
                           <Link href="/contracts"      className="nav-dd-item" onClick={() => setDropdownOpen(false)}>📄 Contracts</Link>
-                          <Link href="/invite"         className="nav-dd-item" onClick={() => setDropdownOpen(false)}>📩 Invite Creators</Link>
+                          {/* <Link href="/invite"         className="nav-dd-item" onClick={() => setDropdownOpen(false)}>📩 Invite Creators</Link>
                           <Link href="/contact"        className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🔓 Unlock Contacts</Link>
-                          <Link href="/smart-match"    className="nav-dd-item" onClick={() => setDropdownOpen(false)}>✨ Smart Match</Link>
+                          <Link href="/smart-match"    className="nav-dd-item" onClick={() => setDropdownOpen(false)}>✨ Smart Match</Link> */}
                           <Link href="/campaigns/post" className="nav-dd-item" onClick={() => setDropdownOpen(false)}>📋 Post Campaign</Link>
                         </>
                       )}
@@ -548,9 +548,7 @@ export default function Navbar() {
             {isBrand && (
               <>
                 <div className="nav-mobile-section">Brand Tools</div>
-                {/* <Link href="/invite"      className={`nav-mobile-link ${isActive("/invite") ? "active" : ""}`}>Invite Creators</Link>
-                <Link href="/contact"     className={`nav-mobile-link ${isActive("/contact") ? "active" : ""}`}>Unlock Contacts</Link>
-                <Link href="/smart-match" className={`nav-mobile-link ${isActive("/smart-match") ? "active" : ""}`}>Smart Match</Link> */}
+             
                 <Link href="/campaigns/post" className={`nav-mobile-link ${isActive("/campaigns/post") ? "active" : ""}`}>Post Campaign</Link>
               </>
             )}
