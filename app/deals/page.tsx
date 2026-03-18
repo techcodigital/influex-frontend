@@ -180,7 +180,7 @@ export default function DealsPage() {
   };
 
   const isEscrowFunded  = (deal: any) => ["paid","deposited","released"].includes(deal.paymentStatus);
-  const isWorkSubmitted = (deal: any) => ["submitted"].includes(deal.workStatus) && deal.deliverable?._id;
+  const isWorkSubmitted = (deal: any) => ["submitted","approved"].includes(deal.workStatus) && deal.deliverable?._id;
   const isCompleted     = (deal: any) => deal.paymentStatus === "released";
 
   const statusColor: Record<string, string> = {
@@ -405,7 +405,6 @@ export default function DealsPage() {
     </>
   );
 }
-
 // "use client";
 
 // import { useEffect, useState } from "react";
