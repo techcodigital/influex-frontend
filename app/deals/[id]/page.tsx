@@ -24,6 +24,7 @@ function DealDetailPageInner() {
   const [showSubmit,    setShowSubmit]    = useState(false);
   const [brandName,     setBrandName]     = useState("");
   const [creatorName,   setCreatorName]   = useState("");
+  const [deliverable,   setDeliverable]   = useState<any>(null);
 
   const showToast = (msg: string, type: "success"|"error"|"warn" = "success") => {
     setToast({msg,type}); setTimeout(() => setToast(null), 4500);
@@ -79,6 +80,11 @@ function DealDetailPageInner() {
       } catch { /* silent */ }
 
       console.log("DEAL DATA:", JSON.stringify(d, null, 2));
+
+      // ✅ Deliverable now comes with deal response (populated in getDealById)
+      if (d.deliverable?._id || d.deliverable?.note || d.deliverable?.links?.length) {
+        setDeliverable(d.deliverable);
+      }
 
       // Fetch brand & creator names
       const brandId   = d.brandId?._id   || d.brandId;
@@ -204,6 +210,9 @@ function DealDetailPageInner() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Submit failed");
+      // ✅ Save deliverable locally so brand can see it immediately
+      const savedDel = data.deliverable || data.data || { note: submitNote, links: [submitFile].filter(Boolean), createdAt: new Date().toISOString() };
+      setDeliverable(savedDel);
       showToast("📤 Work submitted! Waiting for approval.", "success");
       setShowSubmit(false);
       setSubmitNote("");
@@ -239,8 +248,9 @@ function DealDetailPageInner() {
   // ✅ Status checks — "deposited" sahi field hai server se
   // ✅ "paid" | "deposited" | "funded" — all mean escrow is funded
   const isEscrowFunded  = ["paid","deposited","funded","released","completed"].includes(deal?.paymentStatus) || ["funded","released"].includes(escrow?.status);
-  // ✅ "in_progress" | "submitted" | "approved" | "completed"
-  const isWorkSubmitted = ["submitted","approved","completed","in_progress"].includes(deal?.workStatus);
+  // ✅ "in_progress" = work started but NOT submitted yet
+  // Only "submitted" | "approved" | "completed" = actually submitted
+  const isWorkSubmitted = ["submitted","approved","completed"].includes(deal?.workStatus);
   const isCompleted     = ["released","completed"].includes(deal?.paymentStatus) || escrow?.status === "released";
   const isBrand         = role === "brand";
   const isCreator       = role === "influencer" || role === "creator";
@@ -473,22 +483,34 @@ function DealDetailPageInner() {
             </div>
           )}
 
-          {/* Brand: view submitted work */}
+          {/* Brand: view submitted work — from Deliverable collection */}
           {isBrand && isWorkSubmitted && (
             <div className="dd-card" style={{border:"1.5px solid #c7d2fe",background:"#f8f9ff"}}>
               <div className="dd-card-title">📩 Creator's Submission</div>
-              {deal.submittedWork?.note && (
+              {/* Note */}
+              {(deliverable?.note || deal.submittedWork?.note) && (
                 <div style={{fontSize:13,color:"#444",lineHeight:1.65,marginBottom:10,padding:"10px 12px",background:"#fff",borderRadius:10}}>
-                  {deal.submittedWork.note}
+                  {deliverable?.note || deal.submittedWork?.note}
                 </div>
               )}
-              {deal.submittedWork?.fileUrl || deal.submittedWork?.links?.[0] ? (
-                <a href={deal.submittedWork?.fileUrl || deal.submittedWork?.links?.[0]} target="_blank" rel="noreferrer"
-                  style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"#fff",borderRadius:10,color:"#4f46e5",fontWeight:600,fontSize:13,textDecoration:"none",border:"1px solid #c7d2fe"}}>
-                  📎 View Submitted Work →
-                </a>
+              {/* Links */}
+              {(deliverable?.links?.length > 0 || deal.submittedWork?.fileUrl || deal.submittedWork?.links?.[0]) ? (
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {(deliverable?.links || [deal.submittedWork?.fileUrl || deal.submittedWork?.links?.[0]]).filter(Boolean).map((link: string, i: number) => (
+                    <a key={i} href={link} target="_blank" rel="noreferrer"
+                      style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",background:"#fff",borderRadius:10,color:"#4f46e5",fontWeight:600,fontSize:13,textDecoration:"none",border:"1px solid #c7d2fe"}}>
+                      📎 View Submitted Work {deliverable?.links?.length > 1 ? `(${i+1})` : ""} →
+                    </a>
+                  ))}
+                </div>
               ) : (
                 <div className="info info-blue">Work submitted — no link provided by creator.</div>
+              )}
+              {/* Submitted time */}
+              {deliverable?.createdAt && (
+                <div style={{fontSize:11,color:"#aaa",marginTop:8}}>
+                  Submitted: {new Date(deliverable.createdAt).toLocaleString("en-IN")}
+                </div>
               )}
             </div>
           )}
@@ -511,7 +533,6 @@ export default function DealDetailPage() {
     </Suspense>
   );
 }
-
 
 // "use client";
 
