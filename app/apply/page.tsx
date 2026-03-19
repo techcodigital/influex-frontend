@@ -182,6 +182,16 @@ function ApplyPageInner() {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ proposal, bidAmount: Number(bidAmount) }),
       });
+      // const data = await res.json();
+      // if (!res.ok) {
+      //   const msg = (data.message || "").toLowerCase();
+      //   if (msg.includes("already") || res.status === 400 || res.status === 500) {
+      //     // Apply happened — treat as success
+      //   } else {
+      //     showToast(data.message || "Apply failed", "error");
+      //     return;
+      //   }
+      // }
       const data = await res.json();
       if (!res.ok) {
         const msg = (data.message || "").toLowerCase();
@@ -220,11 +230,12 @@ function ApplyPageInner() {
           const notifRes = await fetch(`${API}/notification/create`, {
             method: "POST",
             headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
+         body: JSON.stringify({
               userId: String(brandId),
               message: `New application received for "${campaign?.title || "your campaign"}"`,
               type: "new_application",
               link: `/campaigns/${campaignId}/applications`,
+              applicationId: applicationId,
             }),
           });
           const notifData = await notifRes.json();
