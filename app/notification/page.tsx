@@ -127,7 +127,8 @@ export default function NotificationsPage() {
       await safeFetch(`${API}/notification/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
-        body: JSON.stringify({ user: creatorId, sender: user.id, message, type, applicationId: appId, link: "/notifications" }),
+        // body: JSON.stringify({ user: creatorId, sender: user.id, message, type, applicationId: appId, link: "/notifications" }),
+        body: JSON.stringify({ userId: creatorId, sender: user.id, message, type, applicationId: appId, link: "/notifications" }),
       });
     } catch { /* silent */ }
   };
