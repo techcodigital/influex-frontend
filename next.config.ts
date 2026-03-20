@@ -1,5 +1,3 @@
-
-
 const nextConfig = {
   images: {
     remotePatterns: [
@@ -13,9 +11,36 @@ const nextConfig = {
       },
     ],
   },
+  async rewrites() {
+    return [
+      {
+        source: "/api-proxy/:path*",
+        destination: "https://api.collabzy.in/api/:path*",
+      },
+    ];
+  },
 };
 
 export default nextConfig;
+
+
+
+// const nextConfig = {
+//   images: {
+//     remotePatterns: [
+//       {
+//         protocol: "https",
+//         hostname: "influex-profile-images.s3.ap-southeast-2.amazonaws.com",
+//       },
+//       {
+//         protocol: "https",
+//         hostname: "api.dicebear.com",
+//       },
+//     ],
+//   },
+// };
+
+// export default nextConfig;
 
 
 

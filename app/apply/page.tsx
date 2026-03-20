@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter , useSearchParams} from "next/navigation";
 
 const API = "https://api.collabzy.in/api";
 
@@ -26,9 +26,12 @@ const toCanonical = (s: string): string => {
 function ApplyPageInner() {
   const router = useRouter();
 
-  const campaignId = typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search).get("id") || ""
-    : "";
+  // const campaignId = typeof window !== "undefined"
+  //   ? new URLSearchParams(window.location.search).get("id") || ""
+  //   : "";
+
+  const searchParams = useSearchParams();
+const campaignId = searchParams?.get("id") || "";
 
   const [campaign, setCampaign]           = useState<any>(null);
   const [loading, setLoading]             = useState(true);
@@ -133,26 +136,41 @@ function ApplyPageInner() {
     finally { setLoading(false); }
   };
 
+  // const fetchCampaignDeal = async () => {
+  //   try {
+  //     const res = await fetch(`${API}/deal/campaign/${campaignId}`, { headers: { Authorization: `Bearer ${token}` } });
+  //     if (res.ok) {
+  //       const data = await res.json();
+  //       const deals: any[] = Array.isArray(data) ? data : (data.deals || data.data || []);
+  //       if (deals.length > 0) { setCampaignDeal(deals[0]); return; }
+  //     }
+  //     const res2 = await fetch(`${API}/deal/my`, { headers: { Authorization: `Bearer ${token}` } });
+  //     if (res2.ok) {
+  //       const data2 = await res2.json();
+  //       const allDeals: any[] = Array.isArray(data2) ? data2 : (data2.deals || data2.data || []);
+  //       const match = allDeals.find((d: any) => {
+  //         const cid = typeof d.campaignId === "object" ? d.campaignId?._id : d.campaignId;
+  //         return cid === campaignId;
+  //       });
+  //       if (match) setCampaignDeal(match);
+  //     }
+  //   } catch { /* silent */ }
+  // };
+
   const fetchCampaignDeal = async () => {
-    try {
-      const res = await fetch(`${API}/deal/campaign/${campaignId}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) {
-        const data = await res.json();
-        const deals: any[] = Array.isArray(data) ? data : (data.deals || data.data || []);
-        if (deals.length > 0) { setCampaignDeal(deals[0]); return; }
-      }
-      const res2 = await fetch(`${API}/deal/my`, { headers: { Authorization: `Bearer ${token}` } });
-      if (res2.ok) {
-        const data2 = await res2.json();
-        const allDeals: any[] = Array.isArray(data2) ? data2 : (data2.deals || data2.data || []);
-        const match = allDeals.find((d: any) => {
-          const cid = typeof d.campaignId === "object" ? d.campaignId?._id : d.campaignId;
-          return cid === campaignId;
-        });
-        if (match) setCampaignDeal(match);
-      }
-    } catch { /* silent */ }
-  };
+  try {
+    const res = await fetch(`${API}/deal/my`, { headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) {
+      const data = await res.json();
+      const allDeals: any[] = Array.isArray(data) ? data : (data.deals || data.data || []);
+      const match = allDeals.find((d: any) => {
+        const cid = typeof d.campaignId === "object" ? d.campaignId?._id : d.campaignId;
+        return cid === campaignId;
+      });
+      if (match) setCampaignDeal(match);
+    }
+  } catch { /* silent */ }
+};
 
   const handleApply = async () => {
     if (!bidAmount || Number(bidAmount) <= 0) { setProposalError("Please enter your bid amount"); return; }
