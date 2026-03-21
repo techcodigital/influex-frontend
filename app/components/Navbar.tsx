@@ -300,7 +300,7 @@ export default function Navbar() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         .nav { position: sticky; top: 0; z-index: 9999; background: #fff; border-bottom: 1px solid #ebebeb; font-family: 'Plus Jakarta Sans', sans-serif; }
-        .nav-inner { max-width: 1280px; margin: 0 auto; padding: 0 24px; height: 64px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 24px; }
+        .nav-inner { max-width: 1280px; margin: 0 auto; padding: 0 24px; height: 72px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 24px; }
         @media(max-width:900px){ .nav-inner { grid-template-columns: auto auto; justify-content: space-between; } .nav-inner > *:nth-child(2) { display: none; } }
         .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; flex-shrink: 0; }
         .nav-logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, #4f46e5, #7c3aed); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 13px; flex-shrink: 0; }
@@ -357,17 +357,22 @@ export default function Navbar() {
       <nav className="nav">
         <div className="nav-inner">
           {/* LOGO */}
-          <Link href="/" className="nav-logo">
+          {/* <Link href="/" className="nav-logo">
             <div className="nav-logo-icon">CB</div>
             <span className="nav-logo-text">CreatorBridge</span>
-          </Link>
+          </Link> */}
+
+          <Link href="/" className="nav-logo">
+  {/* <img src="/collabzy-logo.png.png" alt="Collabzy" style={{ height: 100, width: "auto", objectFit: "contain" }} /> */}
+  <img src="/collabzy-logo.png" alt="Collabzy" style={{ height: 89, width: "auto", maxWidth: 280, objectFit: "contain" }} />
+</Link>
 
           {/* CENTER LINKS */}
           {user ? (
             <div className="nav-links">
               {isInfluencer && (<>
                 <Link href="/discovery"    className={`nav-link ${isActive("/discovery") ? "active" : ""}`}>Discover</Link>
-                <Link href="/my-applications" className={`nav-link ${isActive("/my-applications") ? "active" : ""}`}>MyApplications</Link>
+                <Link href="/my-applications" className={`nav-link ${isActive("/my-applications") ? "active" : ""}`}>Applied Campaigns</Link>
                 <Link href="/messages"     className={`nav-link ${isActive("/messages") ? "active" : ""}`}>Messages</Link>
                 <Link href="/notification" className={`nav-link ${isActive("/notification") ? "active" : ""}`} onClick={() => setUnreadCount(0)}>
                   Notifications{unreadCount > 0 && <span className="nav-notif-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
@@ -514,7 +519,7 @@ export default function Navbar() {
             {isInfluencer && <Link href="/discovery"    className={`nav-mobile-link ${isActive("/discovery") ? "active" : ""}`}>Discover</Link>}
             {isBrand      && <Link href="/browse"       className={`nav-mobile-link ${isActive("/browse") ? "active" : ""}`}>Discover Creators</Link>}
             {(isBrand||isAdmin) && <Link href="/campaigns" className={`nav-mobile-link ${isActive("/campaigns") ? "active" : ""}`}>Campaigns</Link>}
-            {isInfluencer && <Link href="/apply"        className={`nav-mobile-link ${isActive("/apply") ? "active" : ""}`}>Applied Campaigns</Link>}
+            {isInfluencer && <Link href="/my-applications"        className={`nav-mobile-link ${isActive("/my-applications") ? "active" : ""}`}>Applied Campaigns</Link>}
             <Link href="/messages"     className={`nav-mobile-link ${isActive("/messages") ? "active" : ""}`}>Messages</Link>
             <Link href="/notification" className={`nav-mobile-link ${isActive("/notification") ? "active" : ""}`} onClick={() => setUnreadCount(0)}>
               Notifications {unreadCount > 0 && <span className="nav-notif-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
