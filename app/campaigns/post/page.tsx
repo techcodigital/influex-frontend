@@ -4,8 +4,8 @@ import { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
 
-const API          = "https://api.collabzy.in/api/campaigns";
-const API_BASE     = "https://api.collabzy.in/api";
+const API          = "http://api.collabzy.in/api/campaigns";
+const API_BASE     = "http://api.collabzy.in/api";
 const RAZORPAY_KEY = "rzp_test_SL7M2uHDyhrU4A";
 const PLAN_ID      = "plan_SKmSEwh4wl4Tv6";
 

@@ -5,7 +5,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 
-const API = "http://54.252.201.93:5000/api";
+const API = "http://api.collabzy.in/api";
 
 const DEFAULT_TERMS = `1. SCOPE OF WORK
 The Creator agrees to produce the deliverables as specified in this contract.

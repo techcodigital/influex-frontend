@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-const API = "http://54.252.201.93:5000/api";
+const API = "http://api.collabzy.in/api";
 
 export default function LandingPage() {
   const [cities, setCities] = useState<any[]>([]);

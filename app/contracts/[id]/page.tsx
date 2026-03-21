@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-const API = "http://54.252.201.93:5000/api";
+const API = "http://api.collabzy.in/api";
 
 function ContractDetailInner() {
   const { id }   = useParams();

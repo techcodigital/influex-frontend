@@ -4,8 +4,8 @@ import { useEffect, useState, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { io, Socket } from "socket.io-client";
 
-const API = "https://api.collabzy.in/api";
-const SOCKET_URL = "https://api.collabzy.in/api";
+const API = "http://api.collabzy.in/api";
+const SOCKET_URL = "http://api.collabzy.in/api";
 
 const BANNED_KEYWORDS = [
   "whatsapp","whatsapp number","wp number","wapp",
