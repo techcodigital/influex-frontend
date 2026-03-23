@@ -450,14 +450,14 @@ export default function CampaignApplications() {
           <Link href={`/campaigns/${id}`} className="ap-back-btn">← Back</Link>
         </div>
 
-        {applications.length > 0 && (
+        {/* {applications.length > 0 && (
           <div className="ap-stats">
             <div className="ap-stat"><span style={{ fontSize: 20 }}>👥</span><div><div className="ap-stat-val">{applications.length}</div><div className="ap-stat-lbl">Total</div></div></div>
             <div className="ap-stat"><span style={{ fontSize: 20 }}>✅</span><div><div className="ap-stat-val">{Object.values(decidedApps).filter(v => v === "accepted").length}</div><div className="ap-stat-lbl">Accepted</div></div></div>
             <div className="ap-stat"><span style={{ fontSize: 20 }}>⏳</span><div><div className="ap-stat-val">{applications.filter(a => !decidedApps[a._id]).length}</div><div className="ap-stat-lbl">Pending</div></div></div>
             <div className="ap-stat"><span style={{ fontSize: 20 }}>🤝</span><div><div className="ap-stat-val">{dealDoneIds.size}</div><div className="ap-stat-lbl">Deals Done</div></div></div>
           </div>
-        )}
+        )} */}
 
         {applications.length === 0 ? (
           <div className="ap-empty">
