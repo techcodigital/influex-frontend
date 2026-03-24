@@ -114,24 +114,45 @@ export default function PortfolioUploadPage() {
     setItems(prev => prev.map(i => i.id === id ? { ...i, caption } : i));
   };
 
-  // Upload single file to backend
-  const uploadFile = async (item: MediaItem): Promise<string> => {
-    if (!item.file) return item.url;
-    const formData = new FormData();
-    formData.append("file", item.file);
-    formData.append("type", item.type);
-    formData.append("caption", item.caption);
 
-    // TODO: Replace with actual backend upload endpoint when ready
-    const res = await fetch(`${API}/portfolio/upload`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData,
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Upload failed");
-    return data.url || data.fileUrl || data.data?.url || "";
-  };
+  const uploadFile = async (item: MediaItem): Promise<string> => {
+  if (!item.file) return item.url;
+
+  let endpoint = "";
+  const formData = new FormData();
+
+  // 🔥 Correct endpoint + key mapping
+  if (item.type === "reel") {
+    endpoint = `${API}/upload/videos`;
+    formData.append("videos", item.file); // ⚠️ backend expects "videos"
+  } else {
+    endpoint = `${API}/upload/image`;
+    formData.append("image", item.file); // ⚠️ backend expects "image"
+  }
+
+  formData.append("caption", item.caption);
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.message || "Upload failed");
+  }
+
+  // 🔥 Handle different response formats
+  if (item.type === "reel") {
+    return data.urls?.[0] || data.url || data.data?.[0] || "";
+  } else {
+    return data.url || data.data?.url || "";
+  }
+};
 
   const handleSave = async () => {
     if (items.length === 0) {
