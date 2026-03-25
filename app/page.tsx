@@ -474,9 +474,15 @@ export default function LandingPage() {
 
           {/* BRAND */}
           <div className="footer-brand">
+            {/* <Link href="/" className="footer-logo">
+              <img src="/favicon.png" alt="collabzy" style={{height:"32px", width:"auto"}} />
+            </Link> */}
+             
             <Link href="/" className="footer-logo">
               <img src="/favicon.png" alt="collabzy" style={{height:"32px", width:"auto"}} />
+              <span className="footer-logo-text">collabzy</span>
             </Link>
+
             <p className="footer-tagline">
               India's premier platform connecting brands with top creators.
             </p>
