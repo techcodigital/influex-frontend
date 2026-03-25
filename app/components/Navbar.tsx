@@ -8,10 +8,10 @@ const API_BASE = "https://api.collabzy.in/api";
 
 const PLAN_LIMITS: Record<string, { label: string; campaigns: number; tokens: number }> = {
   free:          { label: "Free",  campaigns: 2,   tokens: 200   },
-  pro:           { label: "Pro",   campaigns: 10,  tokens: 1000  },
-  pro_plus:      { label: "Pro+",  campaigns: 25,  tokens: 2500  },
-  pro_year:      { label: "Pro",   campaigns: 120, tokens: 12000 },
-  pro_plus_year: { label: "Pro+",  campaigns: 250, tokens: 25000 },
+  pro_monthly:           { label: "Pro",   campaigns: 10,  tokens: 1000  },
+  pro_plus_monthly:      { label: "Pro+",  campaigns: 25,  tokens: 2500  },
+  pro_yearly:      { label: "Pro",   campaigns: 120, tokens: 12000 },
+  pro_plus_yearly: { label: "Pro+",  campaigns: 250, tokens: 25000 },
 };
 
 const CREATOR_PLAN_LIMITS: Record<string, { label: string; applies: number | "unlimited"; tokens: number | "unlimited" }> = {
