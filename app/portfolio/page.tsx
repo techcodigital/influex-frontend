@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 const API_BASE = "https://api.collabzy.in/api";
 
@@ -22,16 +22,69 @@ const MAX_POSTS = 3;
 export default function InfluencerPortfolio() {
   const [reels, setReels] = useState<MediaFile[]>([]);
   const [posts, setPosts] = useState<MediaFile[]>([]);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const reelInputRef = useRef<HTMLInputElement>(null);
   const postInputRef = useRef<HTMLInputElement>(null);
 
   const getToken = () => localStorage.getItem("token") || "";
 
+  // ✅ Bug 2 Fix: Page load pe existing portfolio fetch karo
+  useEffect(() => {
+    const fetchPortfolio = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/portfolio`, {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          if (data.reels?.length) {
+            setReels(
+              data.reels.map((url: string, i: number) => ({
+                id: `reel-saved-${i}`,
+                file: new File([], "saved"),
+                preview: url,
+                type: "reel" as const,
+                uploading: false,
+                uploaded: true,
+                url,
+                progress: 100,
+              }))
+            );
+          }
+          if (data.posts?.length) {
+            setPosts(
+              data.posts.map((url: string, i: number) => ({
+                id: `post-saved-${i}`,
+                file: new File([], "saved"),
+                preview: url,
+                type: "post" as const,
+                uploading: false,
+                uploaded: true,
+                url,
+                progress: 100,
+              }))
+            );
+          }
+        }
+      } catch (e) {
+        console.error("Portfolio fetch failed", e);
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+    fetchPortfolio();
+  }, []);
+
   const uploadFile = useCallback(
-    async (mediaFile: MediaFile, setter: React.Dispatch<React.SetStateAction<MediaFile[]>>) => {
+    async (
+      mediaFile: MediaFile,
+      setter: React.Dispatch<React.SetStateAction<MediaFile[]>>
+    ) => {
       setter((prev) =>
-        prev.map((f) => (f.id === mediaFile.id ? { ...f, uploading: true, progress: 0 } : f))
+        prev.map((f) =>
+          f.id === mediaFile.id ? { ...f, uploading: true, progress: 0 } : f
+        )
       );
 
       const formData = new FormData();
@@ -40,12 +93,16 @@ export default function InfluencerPortfolio() {
       else formData.append("image", mediaFile.file);
 
       try {
-        const endpoint = isReel ? `${API_BASE}/upload/videos` : `${API_BASE}/upload/image`;
+        const endpoint = isReel
+          ? `${API_BASE}/upload/videos`
+          : `${API_BASE}/upload/image`;
 
         const progressInterval = setInterval(() => {
           setter((prev) =>
             prev.map((f) =>
-              f.id === mediaFile.id && f.progress < 85 ? { ...f, progress: f.progress + 12 } : f
+              f.id === mediaFile.id && f.progress < 85
+                ? { ...f, progress: f.progress + 12 }
+                : f
             )
           );
         }, 300);
@@ -59,9 +116,12 @@ export default function InfluencerPortfolio() {
         clearInterval(progressInterval);
         const data = await res.json();
 
-        if (!res.ok || !data.success) throw new Error(data.message || "Upload failed");
+        if (!res.ok || !data.success)
+          throw new Error(data.message || "Upload failed");
 
-        const url = isReel ? (data.urls?.[0] || data.url || "") : (data.url || "");
+        const url = isReel
+          ? data.urls?.[0] || data.url || ""
+          : data.url || "";
 
         setter((prev) =>
           prev.map((f) =>
@@ -96,11 +156,11 @@ export default function InfluencerPortfolio() {
       uploaded: false,
       progress: 0,
     }));
-    setReels((prev) => {
-      const updated = [...prev, ...newItems];
-      newItems.forEach((r) => uploadFile(r, setReels));
-      return updated;
-    });
+
+    // ✅ Bug 1 Fix: setReels aur uploadFile alag alag — setter ke andar side effect nahi
+    setReels((prev) => [...prev, ...newItems]);
+    newItems.forEach((r) => uploadFile(r, setReels));
+
     e.target.value = "";
   };
 
@@ -117,34 +177,65 @@ export default function InfluencerPortfolio() {
       uploaded: false,
       progress: 0,
     }));
-    setPosts((prev) => {
-      const updated = [...prev, ...newItems];
-      newItems.forEach((p) => uploadFile(p, setPosts));
-      return updated;
-    });
+
+    // ✅ Bug 1 Fix: setPosts aur uploadFile alag alag
+    setPosts((prev) => [...prev, ...newItems]);
+    newItems.forEach((p) => uploadFile(p, setPosts));
+
     e.target.value = "";
   };
 
-  const removeReel = (id: string) => setReels((p) => p.filter((f) => f.id !== id));
-  const removePost = (id: string) => setPosts((p) => p.filter((f) => f.id !== id));
+  const removeReel = (id: string) =>
+    setReels((p) => p.filter((f) => f.id !== id));
+  const removePost = (id: string) =>
+    setPosts((p) => p.filter((f) => f.id !== id));
 
   const uploading = [...reels, ...posts].some((f) => f.uploading);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const uploadedReels = reels.filter((r) => r.uploaded).map((r) => r.url);
     const uploadedPosts = posts.filter((p) => p.uploaded).map((p) => p.url);
-    console.log("✅ Save:", { reels: uploadedReels, posts: uploadedPosts });
-    alert("Portfolio saved! 🎉");
+
+    try {
+      const res = await fetch(`${API_BASE}/portfolio`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reels: uploadedReels, posts: uploadedPosts }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) alert("Portfolio saved! 🎉");
+      else alert("Save failed: " + data.message);
+    } catch (e) {
+      alert("Save failed!");
+    }
   };
+
+  if (initialLoading) {
+    return (
+      <div style={{ ...s.page, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <p style={{ color: "#6B7280", fontSize: 14 }}>Loading portfolio…</p>
+      </div>
+    );
+  }
 
   return (
     <div style={s.page}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* Back button + Title */}
       <div style={s.titleArea}>
         <button style={s.backBtn} onClick={() => window.history.back()}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M10 12L6 8l4-4" stroke="#374151" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d="M10 12L6 8l4-4"
+              stroke="#374151"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
           Back
         </button>
@@ -243,14 +334,42 @@ export default function InfluencerPortfolio() {
 
 function StatPill({ color, label }: { color: string; label: string }) {
   return (
-    <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 500, color: "#374151" }}>
-      <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0 }} />
+    <span
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        fontSize: 13,
+        fontWeight: 500,
+        color: "#374151",
+      }}
+    >
+      <span
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: "50%",
+          background: color,
+          display: "inline-block",
+          flexShrink: 0,
+        }}
+      />
       {label}
     </span>
   );
 }
 
-function AddCard({ label, hint, emoji, onClick }: { label: string; hint: string; emoji: string; onClick: () => void }) {
+function AddCard({
+  label,
+  hint,
+  emoji,
+  onClick,
+}: {
+  label: string;
+  hint: string;
+  emoji: string;
+  onClick: () => void;
+}) {
   const [hover, setHover] = useState(false);
   return (
     <div
@@ -272,106 +391,239 @@ function AddCard({ label, hint, emoji, onClick }: { label: string; hint: string;
         padding: "16px 12px",
       }}
     >
-      <div style={{
-        width: 52, height: 52, borderRadius: "50%",
-        background: hover ? "#EDE9FE" : "#F3F4F6",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 22, transition: "background 0.15s",
-      }}>
+      <div
+        style={{
+          width: 52,
+          height: 52,
+          borderRadius: "50%",
+          background: hover ? "#EDE9FE" : "#F3F4F6",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 22,
+          transition: "background 0.15s",
+        }}
+      >
         {emoji}
       </div>
-      <p style={{ fontSize: 13, fontWeight: 600, color: hover ? "#7C3AED" : "#374151", margin: 0, transition: "color 0.15s" }}>
+      <p
+        style={{
+          fontSize: 13,
+          fontWeight: 600,
+          color: hover ? "#7C3AED" : "#374151",
+          margin: 0,
+          transition: "color 0.15s",
+        }}
+      >
         {label}
       </p>
-      <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0, textAlign: "center", lineHeight: 1.4 }}>
+      <p
+        style={{
+          fontSize: 11,
+          color: "#9CA3AF",
+          margin: 0,
+          textAlign: "center",
+          lineHeight: 1.4,
+        }}
+      >
         {hint}
       </p>
     </div>
   );
 }
 
-function MediaCard({ media, onRemove }: { media: MediaFile; onRemove: (id: string) => void }) {
+function MediaCard({
+  media,
+  onRemove,
+}: {
+  media: MediaFile;
+  onRemove: (id: string) => void;
+}) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div style={{
-        position: "relative", aspectRatio: "4/5", borderRadius: 14,
-        overflow: "hidden", background: "#F3F4F6", border: "1px solid #E5E7EB",
-      }}>
+      <div
+        style={{
+          position: "relative",
+          aspectRatio: "4/5",
+          borderRadius: 14,
+          overflow: "hidden",
+          background: "#F3F4F6",
+          border: "1px solid #E5E7EB",
+        }}
+      >
         {media.type === "reel" ? (
           <video
             src={media.preview}
             style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            muted loop playsInline
+            muted
+            loop
+            playsInline
             onMouseEnter={(e) => (e.currentTarget as HTMLVideoElement).play()}
             onMouseLeave={(e) => (e.currentTarget as HTMLVideoElement).pause()}
           />
         ) : (
-          <img src={media.preview} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" />
+          <img
+            src={media.preview}
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            alt=""
+          />
         )}
 
         {media.uploading && (
-          <div style={{
-            position: "absolute", inset: 0, background: "rgba(0,0,0,0.52)",
-            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10,
-          }}>
-            <div style={{
-              width: 46, height: 46, borderRadius: "50%",
-              border: "3px solid rgba(255,255,255,0.2)", borderTopColor: "#fff",
-              animation: "spin 0.8s linear infinite",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#fff" }}>{media.progress}%</span>
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "rgba(0,0,0,0.52)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+            }}
+          >
+            <div
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: "50%",
+                border: "3px solid rgba(255,255,255,0.2)",
+                borderTopColor: "#fff",
+                animation: "spin 0.8s linear infinite",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#fff" }}>
+                {media.progress}%
+              </span>
             </div>
-            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: "rgba(255,255,255,0.15)" }}>
-              <div style={{ height: "100%", width: `${media.progress}%`, background: "linear-gradient(90deg,#7C3AED,#EC4899)", transition: "width 0.3s" }} />
+            <div
+              style={{
+                position: "absolute",
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: 3,
+                background: "rgba(255,255,255,0.15)",
+              }}
+            >
+              <div
+                style={{
+                  height: "100%",
+                  width: `${media.progress}%`,
+                  background: "linear-gradient(90deg,#7C3AED,#EC4899)",
+                  transition: "width 0.3s",
+                }}
+              />
             </div>
           </div>
         )}
 
         {media.uploaded && (
-          <div style={{
-            position: "absolute", top: 8, right: 8, width: 22, height: 22,
-            borderRadius: "50%", background: "#16A34A",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
+          <div
+            style={{
+              position: "absolute",
+              top: 8,
+              right: 8,
+              width: 22,
+              height: 22,
+              borderRadius: "50%",
+              background: "#16A34A",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
             <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-              <path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              <path
+                d="M2 6l3 3 5-5"
+                stroke="#fff"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
           </div>
         )}
 
         {media.error && (
-          <div style={{
-            position: "absolute", top: 8, right: 8, width: 22, height: 22,
-            borderRadius: "50%", background: "#DC2626",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            color: "#fff", fontSize: 12, fontWeight: 700,
-          }}>!</div>
+          <div
+            style={{
+              position: "absolute",
+              top: 8,
+              right: 8,
+              width: 22,
+              height: 22,
+              borderRadius: "50%",
+              background: "#DC2626",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
+            !
+          </div>
         )}
 
         <button
           onClick={() => onRemove(media.id)}
           style={{
-            position: "absolute", top: 8, left: 8, width: 24, height: 24,
-            borderRadius: "50%", background: "rgba(0,0,0,0.5)",
-            border: "none", cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+            position: "absolute",
+            top: 8,
+            left: 8,
+            width: 24,
+            height: 24,
+            borderRadius: "50%",
+            background: "rgba(0,0,0,0.5)",
+            border: "none",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 0,
           }}
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M1 1l8 8M9 1L1 9" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" />
+            <path
+              d="M1 1l8 8M9 1L1 9"
+              stroke="#fff"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
           </svg>
         </button>
       </div>
 
       <div>
-        <p style={{ fontSize: 11, fontWeight: 500, color: "#374151", margin: "0 0 1px" }}>
-          {media.file.name.length > 18 ? media.file.name.slice(0, 16) + "…" : media.file.name}
+        <p
+          style={{
+            fontSize: 11,
+            fontWeight: 500,
+            color: "#374151",
+            margin: "0 0 1px",
+          }}
+        >
+          {media.file.name.length > 18
+            ? media.file.name.slice(0, 16) + "…"
+            : media.file.name}
         </p>
-        <p style={{
-          fontSize: 11, margin: 0, fontWeight: 500,
-          color: media.uploaded ? "#16A34A" : media.error ? "#DC2626" : "#9CA3AF",
-        }}>
+        <p
+          style={{
+            fontSize: 11,
+            margin: 0,
+            fontWeight: 500,
+            color: media.uploaded
+              ? "#16A34A"
+              : media.error
+              ? "#DC2626"
+              : "#9CA3AF",
+          }}
+        >
           {media.uploading
             ? `Uploading ${media.progress}%`
             : media.uploaded
@@ -437,7 +689,12 @@ const s: Record<string, React.CSSProperties> = {
   },
   cardTitleRow: { display: "flex", alignItems: "center", gap: 7 },
   emoji: { fontSize: 17 },
-  sectionLabel: { fontSize: 12, fontWeight: 700, letterSpacing: "0.07em", color: "#374151" },
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: "0.07em",
+    color: "#374151",
+  },
   countText: { fontSize: 12, color: "#9CA3AF", fontWeight: 500 },
   grid: {
     display: "grid",
