@@ -23,13 +23,27 @@ function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+// type PortfolioPost = {
+//   _id: string;
+//   urls: string[];
+//   images: string[];
+//   caption: string;
+//   createdAt: string;
+//   user?: string;
+//   userId?: string;
+// };
+
 type PortfolioPost = {
   _id: string;
   urls: string[];
   images: string[];
   caption: string;
   createdAt: string;
-  user?: string;
+  user?: {
+    _id: string;
+    name?: string;
+    profileImage?: string;
+  } | string; // 👈 IMPORTANT
   userId?: string;
 };
 
@@ -54,10 +68,18 @@ function PortfolioSection() {
           const d = await fallback.json();
           const allPosts: PortfolioPost[] = d.data || d.posts || [];
           // const mine = currentUserId ? allPosts.filter(p => (p.user || p.userId) === currentUserId) : allPosts;
-          const mine = currentUserId
-  ? allPosts.filter(p => 
-      (typeof p.user === "object" ? p.user._id : p.user || p.userId) === currentUserId
-    )
+  //         const mine = currentUserId
+  // ? allPosts.filter(p => 
+  //     (typeof p.user === "object" ? p.user._id : p.user || p.userId) === currentUserId
+  //   )
+  // : allPosts;
+  const mine = currentUserId
+  ? allPosts.filter(p => {
+      if (typeof p.user === "object" && p.user !== null) {
+        return p.user._id === currentUserId;
+      }
+      return (p.user || p.userId) === currentUserId;
+    })
   : allPosts;
           return { success: true, data: mine };
         }
