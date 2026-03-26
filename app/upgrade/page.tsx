@@ -182,44 +182,136 @@ export default function UpgradePage() {
       await activateSubscription(planId, planName);
     }
   };
+  //  const activateSubscription = async (planId: string, planName: string) => {
+  //   try {
+  //     const res = await fetch(`${API}/subscription/activate`, {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+  //       body: JSON.stringify({ plan_id: PLAN_ID, planId, planName }),
+  //     });
+  //     const data = await res.json();
+  //     if (data.success) {
+  //       const stored = localStorage.getItem("cb_user");
+  //       const parsed = stored ? JSON.parse(stored) : {};
 
+  //       // ✅ Frontend ID ko DB name pe map karo
+  //       const planDbMap: Record<string, string> = {
+  //         "pro":           "pro_monthly",
+  //         "pro_plus":      "pro_plus_monthly",
+  //         "pro_year":      "pro_yearly",
+  //         "pro_plus_year": "pro_plus_yearly",
+  //       };
+  //       const canonicalPlan = planDbMap[planId] || planId; // ← YE ADD KARO
+
+  //       const updated = { 
+  //         ...parsed, 
+  //         isSubscribed: true, 
+  //         activePlan: canonicalPlan,      // ← "pro_monthly" save hoga
+  //         plan: canonicalPlan,            // ← backup field bhi
+  //         activePlanName: planName, 
+  //         planActivatedAt: new Date().toISOString()  // ← ab ye bhi save hoga
+  //       };
+  //       localStorage.setItem("cb_user", JSON.stringify(updated));
+  //       setUser(updated);
+  //       setIsSubscribed(true);
+  //       setActivePlan(planId); // UI ke liye planId rakhna theek hai
+  // // const activateSubscription = async (planId: string, planName: string) => {
+  // //   try {
+  // //     const res = await fetch(`${API}/subscription/activate`, {
+  // //       method: "POST",
+  // //       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+  // //       body: JSON.stringify({ plan_id: PLAN_ID, planId, planName }),
+  // //     });
+  // //     const data = await res.json();
+  // //     if (data.success) {
+  // //       const stored = localStorage.getItem("cb_user");
+  // //       const parsed = stored ? JSON.parse(stored) : {};
+          
+
+
+  // //       const updated = { ...parsed, isSubscribed: true, activePlan: planId, activePlanName: planName, planActivatedAt: new Date().toISOString() };
+  // //       localStorage.setItem("cb_user", JSON.stringify(updated));
+  // //       setUser(updated);
+  // //       setIsSubscribed(true);
+  // //       setActivePlan(planId);
+
+  //       // ✅ Signal navbar to update bits live
+  //       const allPlans = [...brandMonthlyPlans, ...brandYearlyPlans, ...creatorMonthlyPlans, ...creatorYearlyPlans];
+  //       const matchedPlan = allPlans.find(p => p.id === planId);
+  //       const planBits = matchedPlan?.tokens;
+  //       const bitsNum = typeof planBits === "number" ? planBits : 0;
+  //       if (bitsNum > 0) {
+  //         window.dispatchEvent(new StorageEvent("storage", { key: "cb_user_bits", newValue: String(bitsNum) }));
+  //       }
+  //       window.dispatchEvent(new StorageEvent("storage", { key: "cb_plan_updated", newValue: planId }));
+
+  //       showToast(`🎉 ${planName} plan activated successfully!`, "success");
+  //     } else {
+  //       showToast(data.message || "Activation failed. Contact support.", "error");
+  //     }
+  //   } catch {
+  //     showToast("Activation failed. Please contact support.", "error");
+  //   } finally {
+  //     setLoadingPlanId(null);
+  //   }
+  // };
+  
   const activateSubscription = async (planId: string, planName: string) => {
-    try {
-      const res = await fetch(`${API}/subscription/activate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ plan_id: PLAN_ID, planId, planName }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        const stored = localStorage.getItem("cb_user");
-        const parsed = stored ? JSON.parse(stored) : {};
-        const updated = { ...parsed, isSubscribed: true, activePlan: planId, activePlanName: planName, planActivatedAt: new Date().toISOString() };
-        localStorage.setItem("cb_user", JSON.stringify(updated));
-        setUser(updated);
-        setIsSubscribed(true);
-        setActivePlan(planId);
+  try {
+    const res = await fetch(`${API}/subscription/activate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ plan_id: PLAN_ID, planId, planName }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      const stored = localStorage.getItem("cb_user");
+      const parsed = stored ? JSON.parse(stored) : {};
 
-        // ✅ Signal navbar to update bits live
-        const allPlans = [...brandMonthlyPlans, ...brandYearlyPlans, ...creatorMonthlyPlans, ...creatorYearlyPlans];
-        const matchedPlan = allPlans.find(p => p.id === planId);
-        const planBits = matchedPlan?.tokens;
-        const bitsNum = typeof planBits === "number" ? planBits : 0;
-        if (bitsNum > 0) {
-          window.dispatchEvent(new StorageEvent("storage", { key: "cb_user_bits", newValue: String(bitsNum) }));
-        }
-        window.dispatchEvent(new StorageEvent("storage", { key: "cb_plan_updated", newValue: planId }));
+      // ✅ Frontend ID → DB canonical name
+      const planDbMap: Record<string, string> = {
+        "pro":           "pro_monthly",
+        "pro_plus":      "pro_plus_monthly",
+        "pro_year":      "pro_yearly",
+        "pro_plus_year": "pro_plus_yearly",
+      };
+      const canonicalPlan = planDbMap[planId] || planId;
 
-        showToast(`🎉 ${planName} plan activated successfully!`, "success");
-      } else {
-        showToast(data.message || "Activation failed. Contact support.", "error");
+      const updated = {
+        ...parsed,
+        isSubscribed: true,
+        activePlan: canonicalPlan,
+        plan: canonicalPlan,
+        activePlanName: planName,
+        planActivatedAt: new Date().toISOString(),
+      };
+      localStorage.setItem("cb_user", JSON.stringify(updated));
+      setUser(updated);
+      setIsSubscribed(true);
+      setActivePlan(planId);
+
+      // ✅ Navbar ko live update karo
+      const allPlans = [...brandMonthlyPlans, ...brandYearlyPlans, ...creatorMonthlyPlans, ...creatorYearlyPlans];
+      const matchedPlan = allPlans.find(p => p.id === planId);
+      const planBits = matchedPlan?.tokens;
+      const bitsNum = typeof planBits === "number" ? planBits : 0;
+      if (bitsNum > 0) {
+        window.dispatchEvent(new StorageEvent("storage", { key: "cb_user_bits", newValue: String(bitsNum) }));
       }
-    } catch {
-      showToast("Activation failed. Please contact support.", "error");
-    } finally {
-      setLoadingPlanId(null);
+      window.dispatchEvent(new StorageEvent("storage", { key: "cb_plan_updated", newValue: planId }));
+
+      showToast(`🎉 ${planName} plan activated successfully!`, "success");
+    } else {
+      showToast(data.message || "Activation failed. Contact support.", "error");
     }
-  };
+  } catch {
+    showToast("Activation failed. Please contact support.", "error");
+  } finally {
+    setLoadingPlanId(null);
+  }
+};
+
+
 
   const getPlans = () => {
     if (role === "brand") return billing === "monthly" ? brandMonthlyPlans : brandYearlyPlans;

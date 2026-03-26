@@ -33,6 +33,7 @@ const CREATOR_PLAN_LIMITS: Record<string, { label: string; applies: number | "un
 };
 
 // ✅ Normalize any plan string — handles both DB names and frontend IDs
+// ✅ NAYA - ye lagao
 const toCanonical = (s: string): string => {
   if (!s) return "free";
   const v = s.toLowerCase().trim();
@@ -41,23 +42,66 @@ const toCanonical = (s: string): string => {
     "pro_plus_monthly": "pro_plus_monthly",
     "pro_yearly":       "pro_yearly",
     "pro_plus_yearly":  "pro_plus_yearly",
-    "pro":              "pro",
-    "pro_plus":         "pro_plus",
-    "pro_year":         "pro_year",
-    "pro_plus_year":    "pro_plus_year",
+    "pro":              "pro_monthly",       // ← FIX
+    "pro_plus":         "pro_plus_monthly",  // ← FIX
+    "pro_year":         "pro_yearly",        // ← FIX
+    "pro_plus_year":    "pro_plus_yearly",   // ← FIX
   };
   return map[v] ?? "free";
 };
 
+
+
+// const toCanonical = (s: string): string => {
+//   if (!s) return "free";
+//   const v = s.toLowerCase().trim();
+//   const map: Record<string, string> = {
+//     "pro_monthly":      "pro_monthly",
+//     "pro_plus_monthly": "pro_plus_monthly",
+//     "pro_yearly":       "pro_yearly",
+//     "pro_plus_yearly":  "pro_plus_yearly",
+//     "pro":              "pro",
+//     "pro_plus":         "pro_plus",
+//     "pro_year":         "pro_year",
+//     "pro_plus_year":    "pro_plus_year",
+//   };
+//   return map[v] ?? "free";
+// };
+
 // ✅ Get active plan key from localStorage — handles all field names
+// const getActivePlanKey = (): string => {
+//   try {
+//     const stored = JSON.parse(localStorage.getItem("cb_user") || "{}");
+//     // Check isSubscribed from multiple possible fields
+//     const isSubscribed = stored.isSubscribed === true || stored.subscriptionStatus === "active" || stored.isPremium === true;
+//     if (!isSubscribed) return "free";
+//     // Check plan from multiple possible fields
+//     const raw = stored.plan || stored.activePlan || stored.planId || stored.planName || null;
+//     if (!raw) return "free";
+//     return toCanonical(raw);
+//   } catch {
+//     return "free";
+//   }
+// };
+
 const getActivePlanKey = (): string => {
   try {
     const stored = JSON.parse(localStorage.getItem("cb_user") || "{}");
-    // Check isSubscribed from multiple possible fields
-    const isSubscribed = stored.isSubscribed === true || stored.subscriptionStatus === "active" || stored.isPremium === true;
+
+    const isSubscribed =
+      stored.isSubscribed === true ||
+      stored.subscriptionStatus === "active";
+
     if (!isSubscribed) return "free";
-    // Check plan from multiple possible fields
-    const raw = stored.plan || stored.activePlan || stored.planId || stored.planName || null;
+
+    // planActivatedAt ki zaroorat nahi
+    const raw =
+      stored.activePlan ||
+      stored.plan ||
+      stored.planId ||
+      stored.planName ||
+      null;
+
     if (!raw) return "free";
     return toCanonical(raw);
   } catch {
