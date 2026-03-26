@@ -6,31 +6,64 @@ import { useRouter, usePathname } from "next/navigation";
 
 const API_BASE = "https://api.collabzy.in/api";
 
+
 const PLAN_LIMITS: Record<string, { label: string; campaigns: number; tokens: number }> = {
-  free:              { label: "Free",  campaigns: 2,   tokens: 200   },
-  pro_monthly:       { label: "Pro",   campaigns: 10,  tokens: 1000  },
-  pro_plus_monthly:  { label: "Pro+",  campaigns: 25,  tokens: 2500  },
-  pro_yearly:        { label: "Pro",   campaigns: 120, tokens: 12000 },
-  pro_plus_yearly:   { label: "Pro+",  campaigns: 250, tokens: 25000 },
-  // frontend IDs (upgrade page saves these)
-  pro:               { label: "Pro",   campaigns: 10,  tokens: 1000  },
-  pro_plus:          { label: "Pro+",  campaigns: 25,  tokens: 2500  },
-  pro_year:          { label: "Pro",   campaigns: 120, tokens: 12000 },
-  pro_plus_year:     { label: "Pro+",  campaigns: 250, tokens: 25000 },
+  free:                        { label: "Free",  campaigns: 2,   tokens: 200   },
+  // Brand plans (backend names)
+  brand_pro_monthly:           { label: "Pro",   campaigns: 10,  tokens: 1000  },
+  brand_pro_plus_monthly:      { label: "Pro+",  campaigns: 25,  tokens: 2500  },
+  brand_pro_yearly:            { label: "Pro",   campaigns: 120, tokens: 12000 },
+  brand_pro_plus_yearly:       { label: "Pro+",  campaigns: 250, tokens: 25000 },
+  // // Old names (backward compat)
+  // pro_monthly:                 { label: "Pro",   campaigns: 10,  tokens: 1000  },
+  // pro_plus_monthly:            { label: "Pro+",  campaigns: 25,  tokens: 2500  },
+  // pro_yearly:                  { label: "Pro",   campaigns: 120, tokens: 12000 },
+  // pro_plus_yearly:             { label: "Pro+",  campaigns: 250, tokens: 25000 },
+  // pro:                         { label: "Pro",   campaigns: 10,  tokens: 1000  },
+  // pro_plus:                    { label: "Pro+",  campaigns: 25,  tokens: 2500  },
 };
 
 const CREATOR_PLAN_LIMITS: Record<string, { label: string; applies: number | "unlimited"; tokens: number | "unlimited" }> = {
-  free:              { label: "Free",  applies: 10,          tokens: 100          },
-  pro:               { label: "Pro",   applies: 100,         tokens: 1000         },
-  pro_plus:          { label: "Pro+",  applies: 200,         tokens: 2000         },
-  pro_year:          { label: "Pro",   applies: "unlimited", tokens: "unlimited"  },
-  pro_plus_year:     { label: "Pro+",  applies: "unlimited", tokens: "unlimited"  },
-  // DB names
-  pro_monthly:       { label: "Pro",   applies: 100,         tokens: 1000         },
-  pro_plus_monthly:  { label: "Pro+",  applies: 200,         tokens: 2000         },
-  pro_yearly:        { label: "Pro",   applies: "unlimited", tokens: "unlimited"  },
-  pro_plus_yearly:   { label: "Pro+",  applies: "unlimited", tokens: "unlimited"  },
+  free:                             { label: "Free",  applies: 10,          tokens: 100          },
+  // Influencer plans (backend names)
+  influencer_pro_monthly:           { label: "Pro",   applies: 100,         tokens: 1000         },
+  influencer_pro_plus_monthly:      { label: "Pro+",  applies: 200,         tokens: 2000         },
+  influencer_pro_yearly:            { label: "Pro",   applies: "unlimited", tokens: "unlimited"  },
+  influencer_pro_plus_yearly:       { label: "Pro+",  applies: "unlimited", tokens: "unlimited"  },
+  // // Old names (backward compat)
+  // pro_monthly:                      { label: "Pro",   applies: 100,         tokens: 1000         },
+  // pro_plus_monthly:                 { label: "Pro+",  applies: 200,         tokens: 2000         },
+  // pro_yearly:                       { label: "Pro",   applies: "unlimited", tokens: "unlimited"  },
+  // pro_plus_yearly:                  { label: "Pro+",  applies: "unlimited", tokens: "unlimited"  },
+  // pro:                              { label: "Pro",   applies: 100,         tokens: 1000         },
+  // pro_plus:                         { label: "Pro+",  applies: 200,         tokens: 2000         },
 };
+
+// const PLAN_LIMITS: Record<string, { label: string; campaigns: number; tokens: number }> = {
+//   free:              { label: "Free",  campaigns: 2,   tokens: 200   },
+//   pro_monthly:       { label: "Pro",   campaigns: 10,  tokens: 1000  },
+//   pro_plus_monthly:  { label: "Pro+",  campaigns: 25,  tokens: 2500  },
+//   pro_yearly:        { label: "Pro",   campaigns: 120, tokens: 12000 },
+//   pro_plus_yearly:   { label: "Pro+",  campaigns: 250, tokens: 25000 },
+//   // frontend IDs (upgrade page saves these)
+//   pro:               { label: "Pro",   campaigns: 10,  tokens: 1000  },
+//   pro_plus:          { label: "Pro+",  campaigns: 25,  tokens: 2500  },
+//   pro_year:          { label: "Pro",   campaigns: 120, tokens: 12000 },
+//   pro_plus_year:     { label: "Pro+",  campaigns: 250, tokens: 25000 },
+// };
+
+// const CREATOR_PLAN_LIMITS: Record<string, { label: string; applies: number | "unlimited"; tokens: number | "unlimited" }> = {
+//   free:              { label: "Free",  applies: 10,          tokens: 100          },
+//   pro:               { label: "Pro",   applies: 100,         tokens: 1000         },
+//   pro_plus:          { label: "Pro+",  applies: 200,         tokens: 2000         },
+//   pro_year:          { label: "Pro",   applies: "unlimited", tokens: "unlimited"  },
+//   pro_plus_year:     { label: "Pro+",  applies: "unlimited", tokens: "unlimited"  },
+//   // DB names
+//   pro_monthly:       { label: "Pro",   applies: 100,         tokens: 1000         },
+//   pro_plus_monthly:  { label: "Pro+",  applies: 200,         tokens: 2000         },
+//   pro_yearly:        { label: "Pro",   applies: "unlimited", tokens: "unlimited"  },
+//   pro_plus_yearly:   { label: "Pro+",  applies: "unlimited", tokens: "unlimited"  },
+// };
 
 // ✅ Normalize any plan string — handles both DB names and frontend IDs
 // ✅ NAYA - ye lagao
@@ -129,7 +162,8 @@ export default function Navbar() {
   const [unreadCount, setUnreadCount]   = useState(0);
   const [msgUnread, setMsgUnread]       = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
+  const [backendPlan, setBackendPlan] = useState<string | null>(null);
+const [backendSubscribed, setBackendSubscribed] = useState(false);
   const [campsUsed, setCampsUsed]   = useState(0);
   const [appliesUsed, setAppliesUsed] = useState(0);
   const [bits, setBits]             = useState<number | null>(null);
@@ -185,9 +219,27 @@ export default function Navbar() {
 
     setUser(parsedUser);
 
+    // cachedFetch(`${API_BASE}/profile/me`, token).then(data => {
+    //   if (data?.success && data.profile) setProfile(data.profile);
+    // });
+
     cachedFetch(`${API_BASE}/profile/me`, token).then(data => {
-      if (data?.success && data.profile) setProfile(data.profile);
-    });
+  if (data?.success && data.profile) setProfile(data.profile);
+    
+   const bu = data?.user || data?.profile || {};
+  const fetchedPlan = bu.plan || bu.activePlan || bu.planId || null;
+  const fetchedSubscribed = bu.isSubscribed === true || bu.subscriptionStatus === "active";
+  const fetchedBits = bu.bits ?? data?.profile?.bits ?? null;
+
+  if (fetchedSubscribed && fetchedPlan) {
+    setBackendPlan(fetchedPlan);
+    setBackendSubscribed(true);
+  } else {
+    setBackendPlan("free");
+    setBackendSubscribed(false);
+  }
+
+  if (fetchedBits !== null) setBits(Number(fetchedBits));});
 
     if (parsedUser.role?.toLowerCase() === "brand") {
       cachedFetch(`${API_BASE}/campaigns/my`, token).then(data => {
@@ -342,36 +394,63 @@ export default function Navbar() {
   };
 
   // ✅ FIXED: reads plan from all possible localStorage fields
+  // const getBrandPlanStats = () => {
+  //   const stored     = JSON.parse(localStorage.getItem("cb_user") || "{}");
+  //   const planKey    = getActivePlanKey(); // ✅ handles plan/activePlan/isSubscribed correctly
+  //   const plan       = PLAN_LIMITS[planKey] ?? PLAN_LIMITS["free"];
+  //   const liveBits   = bits ?? stored.bits ?? plan.tokens;
+  //   const campsLeft  = Math.max(0, plan.campaigns - campsUsed);
+  //   const tokensLeft = Math.max(0, liveBits);
+  //   return { plan, campsLeft, tokensLeft };
+  // };
+
   const getBrandPlanStats = () => {
-    const stored     = JSON.parse(localStorage.getItem("cb_user") || "{}");
-    const planKey    = getActivePlanKey(); // ✅ handles plan/activePlan/isSubscribed correctly
-    const plan       = PLAN_LIMITS[planKey] ?? PLAN_LIMITS["free"];
-    const liveBits   = bits ?? stored.bits ?? plan.tokens;
-    const campsLeft  = Math.max(0, plan.campaigns - campsUsed);
-    const tokensLeft = Math.max(0, liveBits);
-    return { plan, campsLeft, tokensLeft };
-  };
+  // ✅ Backend plan use karo, localStorage nahi
+  const planKey = backendSubscribed && backendPlan
+    ? backendPlan
+    : "free";
+  const plan = PLAN_LIMITS[planKey] ?? PLAN_LIMITS["free"];
+  const liveBits = bits ?? plan.tokens;
+  const tokensLeft = Math.max(0, liveBits);
+  return { plan, tokensLeft };
+};
 
   // ✅ FIXED: same for creator
-  const getCreatorPlanStats = () => {
-    const stored    = JSON.parse(localStorage.getItem("cb_user") || "{}");
-    const planKey   = getActivePlanKey();
-    const plan      = CREATOR_PLAN_LIMITS[planKey] ?? CREATOR_PLAN_LIMITS["free"];
-    const isUnlim   = plan.applies === "unlimited";
-    const appliesLeft: number | "∞" = isUnlim ? "∞" : Math.max(0, (plan.applies as number) - appliesUsed);
-    const planTokens  = plan.tokens === "unlimited" ? Infinity : Number(plan.tokens);
-    const storedBits  = Number(bits ?? stored.bits ?? planTokens);
-    let tokensLeft: number | "∞";
-    if (plan.tokens === "unlimited") {
-      tokensLeft = "∞";
-    } else {
-      tokensLeft = Math.max(0, Math.min(storedBits, planTokens));
-    }
-    const tokensTotal  = plan.tokens === "unlimited" ? "∞" : plan.tokens;
-    const appliesTotal = plan.applies === "unlimited" ? "∞" : plan.applies;
-    return { plan, appliesLeft, appliesTotal, tokensLeft, tokensTotal, isUnlim };
-  };
+  // const getCreatorPlanStats = () => {
+  //   const stored    = JSON.parse(localStorage.getItem("cb_user") || "{}");
+  //   const planKey   = getActivePlanKey();
+  //   const plan      = CREATOR_PLAN_LIMITS[planKey] ?? CREATOR_PLAN_LIMITS["free"];
+  //   const isUnlim   = plan.applies === "unlimited";
+  //   const appliesLeft: number | "∞" = isUnlim ? "∞" : Math.max(0, (plan.applies as number) - appliesUsed);
+  //   const planTokens  = plan.tokens === "unlimited" ? Infinity : Number(plan.tokens);
+  //   const storedBits  = Number(bits ?? stored.bits ?? planTokens);
+  //   let tokensLeft: number | "∞";
+  //   if (plan.tokens === "unlimited") {
+  //     tokensLeft = "∞";
+  //   } else {
+  //     tokensLeft = Math.max(0, Math.min(storedBits, planTokens));
+  //   }
+  //   const tokensTotal  = plan.tokens === "unlimited" ? "∞" : plan.tokens;
+  //   const appliesTotal = plan.applies === "unlimited" ? "∞" : plan.applies;
+  //   return { plan, appliesLeft, appliesTotal, tokensLeft, tokensTotal, isUnlim };
+  // };
+    
 
+  const getCreatorPlanStats = () => {
+  // ✅ Backend plan use karo, localStorage nahi
+  const planKey = backendSubscribed && backendPlan
+    ? backendPlan
+    : "free";
+  const plan = CREATOR_PLAN_LIMITS[planKey] ?? CREATOR_PLAN_LIMITS["free"];
+  const isUnlim = plan.applies === "unlimited";
+  const appliesLeft: number | "∞" = isUnlim ? "∞" : Math.max(0, (plan.applies as number) - appliesUsed);
+  const planTokens = plan.tokens === "unlimited" ? Infinity : Number(plan.tokens);
+  const storedBits = Number(bits ?? planTokens);
+  const tokensLeft: number | "∞" = plan.tokens === "unlimited" ? "∞" : Math.max(0, Math.min(storedBits, planTokens));
+  const tokensTotal = plan.tokens === "unlimited" ? "∞" : plan.tokens;
+  const appliesTotal = plan.applies === "unlimited" ? "∞" : plan.applies;
+  return { plan, appliesLeft, appliesTotal, tokensLeft, tokensTotal, isUnlim };
+};
   const handleLogout = () => {
     const stored = localStorage.getItem("cb_user");
     if (stored) {
