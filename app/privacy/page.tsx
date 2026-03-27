@@ -196,7 +196,7 @@ export default function PrivacyPolicy() {
             <h3>🔒 Privacy Questions?</h3>
             <p>If you have questions about this Privacy Policy or how we handle your data, our team is here to help.</p>
             <p>
-              <a href="mailto:privacy@collabzy.in">📧 privacy@collabzy.in</a>
+              <a href="mailto:privacy@collabzy.in">📧 support@collabzy.in</a>
               <br /><br />
               <span style={{color:"rgba(255,255,255,0.4)",fontSize:12}}>
                 Collabzy · Indore, Madhya Pradesh, India

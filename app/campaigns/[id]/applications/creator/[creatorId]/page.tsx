@@ -338,7 +338,7 @@ export default function CreatorProfilePage() {
             <div className="cp-item"><div className="cp-item-label">Category</div><div className="cp-item-val" style={{ fontSize: 13 }}>{categories}</div></div>
           </div>
         </div>
-
+           
         <div className="cp-card">
           <span className="cp-sec-label">Contact Details</span>
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
@@ -380,7 +380,7 @@ export default function CreatorProfilePage() {
               <div style={{fontSize:11,color:"#aaa"}}>Creator's reels & posts</div>
             </div>
           </div>
-
+           
           {portfolioLoading ? (
             <div style={{textAlign:"center",padding:24}}>
               <div style={{width:24,height:24,border:"2.5px solid #e0e0e0",borderTopColor:"#4f46e5",borderRadius:"50%",animation:"spin .8s linear infinite",margin:"0 auto"}}/>
