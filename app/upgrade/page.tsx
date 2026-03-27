@@ -23,6 +23,15 @@ const dbPlanMap: Record<string, string> = {
   "pro_plus": "pro_plus",
   "pro_year": "pro_year",
   "pro_plus_year": "pro_plus_year",
+
+  "brand_pro_monthly":          "pro",
+  "brand_pro_plus_monthly":     "pro_plus",
+  "brand_pro_yearly":           "pro_year",
+  "brand_pro_plus_yearly":      "pro_plus_year",
+  "influencer_pro_monthly":     "pro",
+  "influencer_pro_plus_monthly":"pro_plus",
+  "influencer_pro_yearly":      "pro_year",
+  "influencer_pro_plus_yearly": "pro_plus_year",
 };
 
 // ✅ Normalize any plan string to frontend ID
