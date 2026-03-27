@@ -85,7 +85,8 @@ export default function LoginPage() {
         bits: data.user.bits ?? 100,
         isSubscribed,
         // ✅ dono save karo — plan (DB value) aur activePlan (normalized)
-        plan: rawPlan,
+        // plan: rawPlan,
+         plan: restoredPlan,
         activePlan: restoredPlan,
         ...(restoredPlanActivatedAt ? { planActivatedAt: restoredPlanActivatedAt } : {}),
       };

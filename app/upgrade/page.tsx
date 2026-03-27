@@ -111,6 +111,7 @@ export default function UpgradePage() {
     else setRole("creator");
 
     // ✅ Read plan from localStorage — handle both "pro_monthly" (DB) and "pro" (frontend) formats
+    // const rawPlan = parsed.plan || parsed.activePlan || null;
     const rawPlan = parsed.plan || parsed.activePlan || null;
 
     if (parsed.isSubscribed === true && rawPlan) {
