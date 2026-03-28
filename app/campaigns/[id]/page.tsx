@@ -111,7 +111,7 @@ export default function CampaignView() {
         </div>
 
         {/* BUTTONS */}
-        <div className="mt-10 flex gap-4">
+        {/* <div className="mt-10 flex gap-4">
           <Link
             href={`/campaigns/${campaign._id}/applications`}
             className="flex-1 text-center py-3 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold hover:opacity-90 transition"
@@ -127,7 +127,23 @@ export default function CampaignView() {
 
 
           
-        </div>
+        </div> */}   
+
+        {/* BUTTONS */}
+<div className="mt-10 flex flex-col sm:flex-row gap-4">
+  <Link
+    href={`/campaigns/${campaign._id}/applications`}
+    className="flex-1 text-center py-3 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold hover:opacity-90 transition text-sm sm:text-base"
+  >
+    View Applications ({totalApps})
+  </Link>
+  <Link
+    href="/campaigns"
+    className="flex-1 text-center py-3 rounded-xl bg-gray-200 text-slate-800 font-semibold hover:bg-gray-300 transition text-sm sm:text-base"
+  >
+    Back
+  </Link>
+</div>
 
       </div>
     </div>
