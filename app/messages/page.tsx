@@ -574,8 +574,7 @@ function MessagesInner() {
             z-index: 15;
           }
           .wa-chat.hidden {
-            
-              display: none !important;
+            display: none !important;
           }
 
           /* ── BACK BUTTON — MOBILE PE SHOW ── */
