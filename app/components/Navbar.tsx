@@ -113,7 +113,6 @@ export default function Navbar() {
          setProfileLoaded(true); // ✅ ADD
       }).catch(() => {});
 
-
       
 
     if (parsedUser.role?.toLowerCase() === "brand") {
