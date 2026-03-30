@@ -8,18 +8,18 @@ const API_BASE = "https://api.collabzy.in/api";
 
 const BRAND_PLAN_LIMITS: Record<string, { label: string; campaigns: number; tokens: number }> = {
   free:                    { label: "Free",  campaigns: 2,   tokens: 200   },
-  brand_pro_monthly:       { label: "Pro",   campaigns: 10,  tokens: 1000  },
-  brand_pro_plus_monthly:  { label: "Pro+",  campaigns: 25,  tokens: 2500  },
-  brand_pro_yearly:        { label: "Pro",   campaigns: 120, tokens: 12000 },
-  brand_pro_plus_yearly:   { label: "Pro+",  campaigns: 250, tokens: 25000 },
+  pro_monthly:       { label: "Pro",   campaigns: 10,  tokens: 1000  },
+  pro_plus_monthly:  { label: "Pro+",  campaigns: 25,  tokens: 2500  },
+  pro_yearly:        { label: "Pro",   campaigns: 120, tokens: 12000 },
+  pro_plus_yearly:   { label: "Pro+",  campaigns: 250, tokens: 25000 },
 };
 
 const CREATOR_PLAN_LIMITS: Record<string, { label: string; applies: number | "unlimited"; tokens: number | "unlimited" }> = {
   free:                        { label: "Free",  applies: 10,          tokens: 100          },
-  influencer_pro_monthly:      { label: "Pro",   applies: 100,         tokens: 1000         },
-  influencer_pro_plus_monthly: { label: "Pro+",  applies: 200,         tokens: 2000         },
-  influencer_pro_yearly:       { label: "Pro",   applies: "unlimited", tokens: "unlimited"  },
-  influencer_pro_plus_yearly:  { label: "Pro+",  applies: "unlimited", tokens: "unlimited"  },
+  pro_monthly:      { label: "Pro",   applies: 100,         tokens: 1000         },
+  pro_plus_monthly: { label: "Pro+",  applies: 200,         tokens: 2000         },
+  pro_yearly:       { label: "Pro",   applies: "unlimited", tokens: "unlimited"  },
+  pro_plus_yearly:  { label: "Pro+",  applies: "unlimited", tokens: "unlimited"  },
 };
 
 const getPlanLabel = (plan: string): string => {
@@ -30,15 +30,50 @@ const getPlanLabel = (plan: string): string => {
   return "Free";
 };
 
+// const getBrandPlanLimits = (plan: string) => {
+//   const p = (plan || "").toLowerCase().trim();
+//   return BRAND_PLAN_LIMITS[p] ?? BRAND_PLAN_LIMITS["free"];
+// };
+// const getBrandPlanLimits = (plan: string) => {
+//   const p = (plan || "").toLowerCase().trim();
+  
+//   // ✅ Short plan names handle karo
+//   if (p === "pro_plus" || p === "pro+" || p.includes("pro_plus")) return BRAND_PLAN_LIMITS["brand_pro_plus_monthly"];
+//   if (p === "pro" || p.includes("pro")) return BRAND_PLAN_LIMITS["brand_pro_monthly"];
+  
+//   return BRAND_PLAN_LIMITS[p] ?? BRAND_PLAN_LIMITS["free"];
+// };
+
 const getBrandPlanLimits = (plan: string) => {
   const p = (plan || "").toLowerCase().trim();
+  if (p === "pro") return BRAND_PLAN_LIMITS["pro_monthly"];
+  if (p === "pro+" || p === "pro_plus") return BRAND_PLAN_LIMITS["pro_plus_monthly"];
   return BRAND_PLAN_LIMITS[p] ?? BRAND_PLAN_LIMITS["free"];
 };
 
+
+
+// const getCreatorPlanLimits = (plan: string) => {
+//   const p = (plan || "").toLowerCase().trim();
+//   return CREATOR_PLAN_LIMITS[p] ?? CREATOR_PLAN_LIMITS["free"];
+// };
+
+// const getCreatorPlanLimits = (plan: string) => {
+//   const p = (plan || "").toLowerCase().trim();
+  
+//   // ✅ Short plan names handle karo
+//   if (p === "pro_plus" || p === "pro+" || p.includes("pro_plus")) return CREATOR_PLAN_LIMITS["influencer_pro_plus_monthly"];
+//   if (p === "pro" || p.includes("pro")) return CREATOR_PLAN_LIMITS["influencer_pro_monthly"];
+  
+//   return CREATOR_PLAN_LIMITS[p] ?? CREATOR_PLAN_LIMITS["free"];
+// };
 const getCreatorPlanLimits = (plan: string) => {
   const p = (plan || "").toLowerCase().trim();
+  if (p === "pro") return CREATOR_PLAN_LIMITS["pro_monthly"];
+  if (p === "pro+" || p === "pro_plus") return CREATOR_PLAN_LIMITS["pro_plus_monthly"];
   return CREATOR_PLAN_LIMITS[p] ?? CREATOR_PLAN_LIMITS["free"];
 };
+
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -241,6 +276,7 @@ export default function Navbar() {
     const liveBits = bits ?? u.bits ?? plan.tokens;
     return { plan, campsLeft: Math.max(0, plan.campaigns - campsUsed), tokensLeft: Math.max(0, Number(liveBits)) };
   };
+  console.log("Plan string:", getLivePlan(), "isSubscribed:", user?.isSubscribed);
 
   const getCreatorPlanStats = () => {
     const u       = user || {};
