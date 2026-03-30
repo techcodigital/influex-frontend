@@ -53,6 +53,7 @@ export default function Navbar() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [campsUsed, setCampsUsed]     = useState(0);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [appliesUsed, setAppliesUsed] = useState(0);
   const [bits, setBits]               = useState<number | null>(null);
 
@@ -74,6 +75,7 @@ export default function Navbar() {
       .then(r => r.json())
       .then(data => {
         if (data?.success && data.profile) setProfile(data.profile);
+         setProfileLoaded(true); // ✅ ADD
       }).catch(() => {});
 
     if (parsedUser.role?.toLowerCase() === "brand") {
@@ -290,28 +292,48 @@ export default function Navbar() {
   const currentPlanLabel = getPlanLabel(getLivePlan());
 
   // ✅ Incomplete profile check
+  // const isProfileIncomplete = (() => {
+  //   if (!user || isAdmin) return false;
+  //   if (isInfluencer) {
+  //     const p = profile || {};
+  //     const hasFollowers = p.followersCount || p.followers || p.followerCount;
+  //     const hasCategory  = p.category || (p.categories && p.categories.length > 0);
+  //     const hasCity      = p.city || p.location;
+  //     const hasLink      = p.instagramUrl || p.youtubeUrl || p.tiktokUrl || p.twitterUrl
+  //                       || p.platformLink
+  //                       || (p.socialLinks && Object.values(p.socialLinks).some(Boolean));
+  //     return !(hasFollowers && hasCategory && hasCity && hasLink);
+  //   }
+  //   if (isBrand) {
+  //     const p = profile || {};
+  //     const hasCompany  = p.companyName || user?.companyName;
+  //     const hasCategory = p.category || p.industry;
+  //     const hasCity     = p.city || p.location;
+  //     const hasWebsite  = p.website || p.websiteUrl;
+  //     return !(hasCompany && hasCategory && hasCity && hasWebsite);
+  //   }
+  //   return false;
+  // })();
   const isProfileIncomplete = (() => {
-    if (!user || isAdmin) return false;
-    if (isInfluencer) {
-      const p = profile || {};
-      const hasFollowers = p.followersCount || p.followers || p.followerCount;
-      const hasCategory  = p.category || (p.categories && p.categories.length > 0);
-      const hasCity      = p.city || p.location;
-      const hasLink      = p.instagramUrl || p.youtubeUrl || p.tiktokUrl || p.twitterUrl
-                        || p.platformLink
-                        || (p.socialLinks && Object.values(p.socialLinks).some(Boolean));
-      return !(hasFollowers && hasCategory && hasCity && hasLink);
-    }
-    if (isBrand) {
-      const p = profile || {};
-      const hasCompany  = p.companyName || user?.companyName;
-      const hasCategory = p.category || p.industry;
-      const hasCity     = p.city || p.location;
-      const hasWebsite  = p.website || p.websiteUrl;
-      return !(hasCompany && hasCategory && hasCity && hasWebsite);
-    }
-    return false;
-  })();
+  if (!user || isAdmin || !profileLoaded) return false;
+  if (isInfluencer) {
+    const p = profile || {};
+    const hasFollowers = p.followers || p.followersCount;
+    const hasCategory  = p.categories && p.categories.length > 0;
+    const hasCity      = p.location || p.city;
+    const hasLink      = p.platform || p.platformLink;
+    return !(hasFollowers && hasCategory && hasCity && hasLink);
+  }
+  if (isBrand) {
+    const p = profile || {};
+    const hasCompany  = p.companyName;
+    const hasCategory = p.categories && p.categories.length > 0;
+    const hasCity     = p.location || p.city;
+    const hasWebsite  = p.website || p.websiteUrl;
+    return !(hasCompany && hasCategory && hasCity && hasWebsite);
+  }
+  return false;
+})();
 
   return (
     <>
@@ -427,7 +449,7 @@ export default function Navbar() {
                         ? <img src={displayImage} alt={displayName} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                         : <span>{displayName.charAt(0).toUpperCase()}</span>}
                       {/* ✅ Amber dot on avatar if profile incomplete */}
-                      {isProfileIncomplete && <span className="nav-incomplete-dot" />}
+                      {/* {isProfileIncomplete && <span className="nav-incomplete-dot" />} */}
                     </div>
                     <span className="nav-avatar-name">{displayName}</span>
                     <svg width="12" height="12" fill="none" stroke="#aaa" viewBox="0 0 24 24">
@@ -442,11 +464,26 @@ export default function Navbar() {
                         <span className="nav-dd-role">{role}</span>
 
                         {/* ✅ Incomplete profile badge in dropdown */}
-                        {isProfileIncomplete && (
+                        {/* {isProfileIncomplete && (
                           <div style={{ marginTop: 6 }}>
                             <span className="nav-incomplete-badge">⚠️ Incomplete Profile</span>
                           </div>
-                        )}
+                        )} */}
+
+                        {isProfileIncomplete ? (
+  <div style={{ marginTop: 6 }}>
+    <span className="nav-incomplete-badge">⚠️ Incomplete Profile</span>
+  </div>
+) : (
+  <div style={{ marginTop: 6 }}>
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      background: "#f0fdf4", border: "1px solid #86efac",
+      color: "#16a34a", borderRadius: "100px",
+      fontSize: 9, fontWeight: 700, padding: "2px 7px"
+    }}>✅ Profile Complete</span>
+  </div>
+)}
 
                         {isInfluencer && (() => {
                           const { tokensLeft, tokensTotal } = getCreatorPlanStats();
