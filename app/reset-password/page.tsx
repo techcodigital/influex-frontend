@@ -11,7 +11,7 @@ function ResetPasswordForm() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const token        = searchParams.get("token") ?? "";
-
+  const email = searchParams.get("email");
   const [password,    setPassword]    = useState("");
   const [confirm,     setConfirm]     = useState("");
   const [showPass,    setShowPass]    = useState(false);
@@ -33,7 +33,7 @@ function ResetPasswordForm() {
       const res  = await fetch(`${API}/auth/reset-password`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ token, newPassword: password }),
+        body:    JSON.stringify({ email ,token, newPassword: password }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Reset failed");

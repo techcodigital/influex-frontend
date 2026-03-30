@@ -186,6 +186,7 @@ export default function SetupProfile() {
             name:         data.profile.name         || storedUser.name  || "",
             email:        data.profile.email        || storedUser.email || "",
             city:         data.profile.city         || data.profile.location || "",
+             phone:        data.profile.phone   ,
             categories:   existingCategories,
             platformLink: data.profile.platform     || "",
             websiteLink:  data.profile.website      || "",
@@ -194,6 +195,7 @@ export default function SetupProfile() {
           setPreview(data.profile.profileImage || null);
           setIsEdit(true);
         }
+        
         // ✅ if no profile yet — name/email already prefilled from localStorage above
       })
       .catch((err) => console.warn("New user:", err.message));
@@ -291,6 +293,9 @@ export default function SetupProfile() {
       companyName: storedUser.role?.toLowerCase() === "brand" ? form.companyName || "" : "",
       website:     storedUser.role?.toLowerCase() === "brand" ? form.websiteLink  || "" : "",
     };
+     console.log("🚀 PAYLOAD:", JSON.stringify(payload));
+
+ 
     if (form.profileImage && form.profileImage.startsWith("http")) {
       payload.profileImage = form.profileImage;
     }
@@ -390,11 +395,11 @@ export default function SetupProfile() {
               <p className="pp-step-title">Basic Info</p>
 
               {/* ✅ Show email as read-only badge */}
-              {form.email && (
+              {/* {form.email && (
                 <div className="pp-email-badge">
                   📧 {form.email}
                 </div>
-              )}
+              )} */}
 
               <div className="pp-avatar-wrap">
                 <label style={{ cursor: uploading ? "not-allowed" : "pointer" }}>
@@ -433,7 +438,7 @@ export default function SetupProfile() {
                   <input type="tel" inputMode="numeric" pattern="[0-9+]*"
                     className="pp-input" placeholder="9876543210"
                     value={form.phone || ""} maxLength={15}
-                    onChange={(e) => handleChange("phone", e.target.value.replace(/[^0-9+]/g, ""))} />
+                    onChange={(e) =>  {  console.log("📞 Phone input:", e.target.value);handleChange("phone", e.target.value.replace(/[^0-9+]/g, ""))}} />
                 </div>
                 <div className="pp-field">
                   <label className="pp-label">City</label>
