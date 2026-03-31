@@ -81,13 +81,13 @@ function ResetPasswordForm() {
             <div
   style={{
     width:120,
-    height:50,
-    borderRadius:10,
+    height:75,
+    
     display:"flex",
     alignItems:"center",
     justifyContent:"center",
     margin:"0 auto 12px",
-    boxShadow:"0 4px 12px rgba(79,70,229,0.25)",
+    
     overflow:"hidden",
     background:"#fff" // optional
   }}
