@@ -293,31 +293,182 @@ export default function BrowsePage() {
     }
   };
 
-  const handleUnlockEmail = async (profileId: string, userId: string) => {
-    if (unlockedEmails[profileId] || unlocking === `email_${profileId}`) return;
-    setUnlocking(`email_${profileId}`);
-    try {
-      const raw = await doUnlock(profileId, userId);
-      const { email, ig } = extractContact(raw);
-      if (!email && !ig) { alert("Contact info not available for this creator."); return; }
-      saveUnlocked(profileId, email, ig);
-      deductBitsLocally(50);
-    } catch (e: any) { alert(e.message || "Something went wrong."); }
-    finally { setUnlocking(null); }
-  };
+  // const handleUnlockEmail = async (profileId: string, userId: string) => {
+  //   if (unlockedEmails[profileId] || unlocking === `email_${profileId}`) return;
+  //   setUnlocking(`email_${profileId}`);
+  //   try {
+  //     const raw = await doUnlock(profileId, userId);
+  //     const { email, ig } = extractContact(raw);
+  //     if (!email && !ig) { alert("Contact info not available for this creator."); return; }
+  //     saveUnlocked(profileId, email, ig);
+  //     deductBitsLocally(50);
+  //   } catch (e: any) { alert(e.message || "Something went wrong."); }
+  //   finally { setUnlocking(null); }
+  // };
 
-  const handleUnlockInstagram = async (profileId: string, userId: string) => {
-    if (unlockedInstagrams[profileId] || unlocking === `ig_${profileId}`) return;
-    setUnlocking(`ig_${profileId}`);
-    try {
-      const raw = await doUnlock(profileId, userId);
-      const { email, ig } = extractContact(raw);
-      if (!ig) { alert("Instagram not available for this creator."); return; }
-      saveUnlocked(profileId, email, ig);
-      deductBitsLocally(50);
-    } catch (e: any) { alert(e.message || "Something went wrong."); }
-    finally { setUnlocking(null); }
-  };
+//   const handleUnlockEmail = async (profile) => {
+//   const profileId = profile._id;
+//   const userId = profile.user; // ✅ correct user id
+
+//   if (!userId) {
+//     alert("Creator ID missing");
+//     return;
+//   }
+
+//   if (unlockedEmails[profileId] || unlocking === `email_${profileId}`) return;
+
+//   setUnlocking(`email_${profileId}`);
+
+//   try {
+//     const raw = await doUnlock(profileId, userId);
+
+//     const email =
+//       raw.email || raw.contactEmail || raw.contact?.email || "";
+
+//     const ig =
+//       raw.platform || raw.instagram || raw.contact?.instagram || "";
+
+//     if (!email && !ig) {
+//       alert("Contact info not available");
+//       return;
+//     }
+
+//     // save email
+//     if (email) {
+//       const ue = { ...unlockedEmails, [profileId]: email };
+//       setUnlockedEmails(ue);
+//       localStorage.setItem("unlockedEmails", JSON.stringify(ue));
+//     }
+
+//     // save instagram
+//     if (ig) {
+//       const ui = { ...unlockedInstagrams, [profileId]: ig };
+//       setUnlockedInstagrams(ui);
+//       localStorage.setItem("unlockedIg", JSON.stringify(ui));
+//     }
+
+//     deductBitsLocally(50);
+
+//   } catch (e) {
+//     alert(e.message || "Unlock failed");
+//   } finally {
+//     setUnlocking(null);
+//   }
+// };
+
+
+const handleUnlockEmail = async (userId: string) => {
+  if (!userId) {
+    alert("User ID missing");
+    return;
+  }
+
+  console.log("✅ CORRECT USER ID:", userId);
+
+  try {
+    const res = await fetch(`${API}/contact/unlock`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ influencerId: userId })
+    });
+
+    const data = await res.json();
+    console.log("UNLOCK RESPONSE:", data);
+
+    if (!res.ok) {
+      alert(data.message || "Unlock failed");
+      return;
+    }
+
+    const email = data.email;
+    const ig = data.platform;
+
+    if (email) {
+      setUnlockedEmails(prev => {
+        const updated = { ...prev, [modalCreator._id]: email };
+        localStorage.setItem("unlockedEmails", JSON.stringify(updated));
+        return updated;
+      });
+    }
+
+    if (ig) {
+      setUnlockedInstagrams(prev => {
+        const updated = { ...prev, [modalCreator._id]: ig };
+        localStorage.setItem("unlockedIg", JSON.stringify(updated));
+        return updated;
+      });
+    }
+
+  } catch (err) {
+    console.error(err);
+    alert("Something went wrong");
+  }
+};
+
+  // const handleUnlockInstagram = async (profileId: string, userId: string) => {
+  //   if (unlockedInstagrams[profileId] || unlocking === `ig_${profileId}`) return;
+  //   setUnlocking(`ig_${profileId}`);
+  //   try {
+  //     const raw = await doUnlock(profileId, userId);
+  //     const { email, ig } = extractContact(raw);
+  //     if (!ig) { alert("Instagram not available for this creator."); return; }
+  //     saveUnlocked(profileId, email, ig);
+  //     deductBitsLocally(50);
+  //   } catch (e: any) { alert(e.message || "Something went wrong."); }
+  //   finally { setUnlocking(null); }
+  // };
+
+  const handleUnlockInstagram = async (profile) => {
+  const profileId = profile._id;
+  const userId = profile.user; // ✅ correct user id
+
+  if (!userId) {
+    alert("Creator ID missing");
+    return;
+  }
+
+  if (unlockedInstagrams[profileId] || unlocking === `ig_${profileId}`) return;
+
+  setUnlocking(`ig_${profileId}`);
+
+  try {
+    const raw = await doUnlock(profileId, userId);
+
+    const email =
+      raw.email || raw.contactEmail || raw.contact?.email || "";
+
+    const ig =
+      raw.platform || raw.instagram || raw.contact?.instagram || "";
+
+    if (!ig) {
+      alert("Instagram not available");
+      return;
+    }
+
+    // save both
+    if (email) {
+      const ue = { ...unlockedEmails, [profileId]: email };
+      setUnlockedEmails(ue);
+      localStorage.setItem("unlockedEmails", JSON.stringify(ue));
+    }
+
+    if (ig) {
+      const ui = { ...unlockedInstagrams, [profileId]: ig };
+      setUnlockedInstagrams(ui);
+      localStorage.setItem("unlockedIg", JSON.stringify(ui));
+    }
+
+    deductBitsLocally(50);
+
+  } catch (e) {
+    alert(e.message || "Unlock failed");
+  } finally {
+    setUnlocking(null);
+  }
+};
 
   const deductBitsLocally = (amount: number) => {
     const stored = localStorage.getItem("cb_user");
@@ -581,7 +732,11 @@ export default function BrowsePage() {
         const isPending      = status === "pending";
         const isConn         = connecting === id;
         // Backend returns "id" field — use _id which we normalized from id
-        const creatorUserId  = (modalCreator as any).userId || (modalCreator as any).user || id;
+        // const creatorUserId  = (modalCreator as any).userId || (modalCreator as any).user || id;
+        const creatorUserId =
+  typeof modalCreator.user === "string"
+    ? modalCreator.user
+    : modalCreator.user?._id || modalCreator._id;
         const emailUnlocked  = unlockedEmails[id];
         const igUnlocked     = unlockedInstagrams[id];
         const isUnlockEmail  = unlocking === `email_${id}`;
@@ -626,7 +781,7 @@ export default function BrowsePage() {
                   {emailUnlocked ? (
                     <div className="mo-row"><span>📧</span><span className="mo-unlocked-email">{emailUnlocked}</span></div>
                   ) : (
-                    <div className="mo-row mo-unlock-row" onClick={() => handleUnlockEmail(id, creatorUserId)}>
+                    <div className="mo-row mo-unlock-row" onClick={() => handleUnlockEmail(creatorUserId)}>
                       <span>📧</span>
                       <span className="mo-masked">{maskEmail(first)}</span>
                       <div className="mo-unlock-action">
@@ -640,7 +795,7 @@ export default function BrowsePage() {
                     igUnlocked ? (
                       <div className="mo-row"><span>📸</span><a href={igUnlocked} target="_blank" rel="noreferrer" className="mo-unlocked-ig">{igUnlocked}</a></div>
                     ) : (
-                      <div className="mo-row mo-unlock-row" onClick={() => handleUnlockInstagram(id, creatorUserId)}>
+                      <div className="mo-row mo-unlock-row" onClick={() => handleUnlockInstagram(modalCreator.user._id)}>
                         <span>📸</span>
                         <span className="mo-masked">{maskInstagram(modalCreator.platform)}</span>
                         <div className="mo-unlock-action">
@@ -783,7 +938,7 @@ export default function BrowsePage() {
                           <button className="cbtn cbtn-chat" title="Open Chat" onClick={() => router.push(`/messages?with=${id}`)}>💬</button>
                           {emailUnlocked
                             ? <button className="cbtn cbtn-unlock" disabled title={`Email: ${emailUnlocked}`} style={{ fontSize: 11, cursor: "default" }}>📧</button>
-                            : <button className="cbtn cbtn-unlock" title="Unlock Email (50 tokens)" disabled={isUnlockEmail} onClick={() => handleUnlockEmail(id, creatorUserId)}>
+                            : <button className="cbtn cbtn-unlock" title="Unlock Email (50 tokens)" disabled={isUnlockEmail} onClick={() => handleUnlockEmail(creatorUserId)}>
                                 {isUnlockEmail ? "⏳" : "🔓"}
                               </button>
                           }
