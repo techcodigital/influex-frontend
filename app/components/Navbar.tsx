@@ -268,32 +268,62 @@ export default function Navbar() {
     return num >= 1000 ? `${(num / 1000).toFixed(num % 1000 === 0 ? 0 : 1)}k` : String(num);
   };
 
-  const getLivePlan = () => (user?.plan || user?.activePlan || "free");
+  // const getLivePlan = () => (user?.plan || user?.activePlan || "free");
 
-  const getBrandPlanStats = () => {
-    const u        = user || {};
-    const subbed   = u.isSubscribed ?? false;
-    const planStr  = subbed ? getLivePlan() : "free";
-    const plan     = getBrandPlanLimits(planStr);
-    const liveBits = bits ?? u.bits ?? plan.tokens;
-    return { plan, campsLeft: Math.max(0, plan.campaigns - campsUsed), tokensLeft: Math.max(0, Number(liveBits)) };
-  };
-  console.log("Plan string:", getLivePlan(), "isSubscribed:", user?.isSubscribed);
+  // const getBrandPlanStats = () => {
+  //   const u        = user || {};
+  //   const subbed   = u.isSubscribed ?? false;
+  //   const planStr  = subbed ? getLivePlan() : "free";
+  //   const plan     = getBrandPlanLimits(planStr);
+  //   const liveBits = bits ?? u.bits ?? plan.tokens;
+  //   return { plan, campsLeft: Math.max(0, plan.campaigns - campsUsed), tokensLeft: Math.max(0, Number(liveBits)) };
+  // };
+  // console.log("Plan string:", getLivePlan(), "isSubscribed:", user?.isSubscribed);
 
-  const getCreatorPlanStats = () => {
-    const u       = user || {};
-    const subbed  = u.isSubscribed ?? false;
-    const planStr = subbed ? getLivePlan() : "free";
-    const plan    = getCreatorPlanLimits(planStr);
-    const isUnlim = plan.applies === "unlimited";
-    const appliesLeft: number | "∞" = isUnlim ? "∞" : Math.max(0, (plan.applies as number) - appliesUsed);
-    const planTokens = plan.tokens === "unlimited" ? Infinity : Number(plan.tokens);
-    const liveBits   = Number(bits ?? u.bits ?? planTokens);
-    const tokensLeft: number | "∞" = plan.tokens === "unlimited" ? "∞" : Math.max(0, Math.min(liveBits, planTokens));
-    const tokensTotal  = plan.tokens === "unlimited" ? "∞" : plan.tokens;
-    const appliesTotal = plan.applies === "unlimited" ? "∞" : plan.applies;
-    return { plan, appliesLeft, appliesTotal, tokensLeft, tokensTotal, isUnlim };
-  };
+  // const getCreatorPlanStats = () => {
+  //   const u       = user || {};
+  //   const subbed  = u.isSubscribed ?? false;
+  //   const planStr = subbed ? getLivePlan() : "free";
+  //   const plan    = getCreatorPlanLimits(planStr);
+  //   const isUnlim = plan.applies === "unlimited";
+  //   const appliesLeft: number | "∞" = isUnlim ? "∞" : Math.max(0, (plan.applies as number) - appliesUsed);
+  //   const planTokens = plan.tokens === "unlimited" ? Infinity : Number(plan.tokens);
+  //   const liveBits   = Number(bits ?? u.bits ?? planTokens);
+  //   const tokensLeft: number | "∞" = plan.tokens === "unlimited" ? "∞" : Math.max(0, Math.min(liveBits, planTokens));
+  //   const tokensTotal  = plan.tokens === "unlimited" ? "∞" : plan.tokens;
+  //   const appliesTotal = plan.applies === "unlimited" ? "∞" : plan.applies;
+  //   return { plan, appliesLeft, appliesTotal, tokensLeft, tokensTotal, isUnlim };
+  // };
+    
+     const getLivePlan = () => {
+  const p = user?.plan || user?.activePlan || "free";
+  const paidPlans = [
+    "pro_monthly", "pro_plus_monthly", "pro_yearly", "pro_plus_yearly",
+    "pro", "pro_plus", "pro_year", "pro_plus_year",
+  ];
+  return paidPlans.includes(p) ? p : "free";
+};
+
+const getBrandPlanStats = () => {
+  const planStr  = getLivePlan();
+  const plan     = getBrandPlanLimits(planStr);
+  const liveBits = bits ?? user?.bits ?? plan.tokens;
+  return { plan, campsLeft: Math.max(0, plan.campaigns - campsUsed), tokensLeft: Math.max(0, Number(liveBits)) };
+};
+
+const getCreatorPlanStats = () => {
+  const planStr    = getLivePlan();
+  const plan       = getCreatorPlanLimits(planStr);
+  const isUnlim    = plan.applies === "unlimited";
+  const appliesLeft: number | "∞" = isUnlim ? "∞" : Math.max(0, (plan.applies as number) - appliesUsed);
+  const planTokens = plan.tokens === "unlimited" ? Infinity : Number(plan.tokens);
+  const liveBits   = Number(bits ?? user?.bits ?? planTokens);
+  const tokensLeft: number | "∞" = plan.tokens === "unlimited" ? "∞" : Math.max(0, Math.min(liveBits, planTokens));
+  const tokensTotal  = plan.tokens === "unlimited" ? "∞" : plan.tokens;
+  const appliesTotal = plan.applies === "unlimited" ? "∞" : plan.applies;
+  return { plan, appliesLeft, appliesTotal, tokensLeft, tokensTotal, isUnlim };
+};
+
 
   const handleLogout = () => {
     const stored = localStorage.getItem("cb_user");

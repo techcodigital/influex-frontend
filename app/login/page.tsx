@@ -63,7 +63,9 @@ export default function LoginPage() {
       const profileData = await profileRes.json();
       const hasProfile = profileData.success && !!profileData.profile;
 
-      const isSubscribed    = data.user.isSubscribed ?? false;
+      // const isSubscribed    = data.user.isSubscribed ?? false;
+      // ✅ NAYA - backend se aata hai true, save karo sahi se
+const isSubscribed = data.user.isSubscribed === true;
       const rawPlan         = data.user.plan || data.user.activePlan || null;
       const planActivatedAt = data.user.planActivatedAt ?? null;
 
@@ -88,7 +90,8 @@ export default function LoginPage() {
         token,
         hasProfile,
         bits:       data.user.bits ?? 100,
-        isSubscribed,
+        // isSubscribed,
+        isSubscribed: data.user.isSubscribed === true, 
         plan:       restoredPlan,
         activePlan: restoredPlan,
         // ✅ email explicitly save karo — backend data.user mein ho ya na ho
