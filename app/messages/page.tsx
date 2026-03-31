@@ -34,45 +34,57 @@ function detectBannedKeyword(text: string): string | null {
 
 const msgChannel = typeof window !== "undefined" ? new BroadcastChannel("msg_unread") : null;
 
+// ✅ CENTRAL FUNCTION: count update karo — localStorage + BroadcastChannel + CustomEvent sab ek saath
+function syncMsgCount(count: number) {
+  // localStorage mein store karo taaki navbar dusre page pe bhi padh sake
+  localStorage.setItem("msg_unread_count", String(count));
+  // BroadcastChannel — same tab ke dusre windows ke liye
+  msgChannel?.postMessage({ type: "msg_unread_update", count });
+  // CustomEvent — same tab ke navbar ke liye (MOST IMPORTANT)
+  window.dispatchEvent(new CustomEvent("msg_unread_update", { detail: { count } }));
+}
+
 function MessagesInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [token, setToken] = useState<string>("");
-  const [myId, setMyId] = useState<string>("");
+  const [token, setToken]               = useState<string>("");
+  const [myId, setMyId]                 = useState<string>("");
   const [conversations, setConversations] = useState<any[]>([]);
-  const [activeConv, setActiveConv] = useState<any>(null);
-  const [messages, setMessages] = useState<any[]>([]);
-  const [newMsg, setNewMsg] = useState("");
-  const [sending, setSending] = useState(false);
+  const [activeConv, setActiveConv]     = useState<any>(null);
+  const [messages, setMessages]         = useState<any[]>([]);
+  const [newMsg, setNewMsg]             = useState("");
+  const [sending, setSending]           = useState(false);
   const [loadingConvs, setLoadingConvs] = useState(true);
-  const [showSidebar, setShowSidebar] = useState(true);
+  const [showSidebar, setShowSidebar]   = useState(true);
   const [selectedProfile, setSelectedProfile] = useState<any>(null);
-  const [profileLoading, setProfileLoading] = useState(false);
-  const [showDp, setShowDp] = useState(false);
+  const [profileLoading, setProfileLoading]   = useState(false);
+  const [showDp, setShowDp]             = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
-  const [bannedWord, setBannedWord] = useState<string | null>(null);
-  const [showWarning, setShowWarning] = useState(false);
+  const [bannedWord, setBannedWord]     = useState<string | null>(null);
+  const [showWarning, setShowWarning]   = useState(false);
 
-  const socketRef           = useRef<Socket | null>(null);
-  const messagesEndRef      = useRef<HTMLDivElement>(null);
-  const activeConvRef       = useRef<any>(null);
-  const inputRef            = useRef<HTMLInputElement>(null);
+  const socketRef            = useRef<Socket | null>(null);
+  const messagesEndRef       = useRef<HTMLDivElement>(null);
+  const activeConvRef        = useRef<any>(null);
+  const inputRef             = useRef<HTMLInputElement>(null);
   const fetchedConversations = useRef(false);
-  const myIdRef             = useRef<string>("");
-  const tokenRef            = useRef<string>("");
-  const profileOpenRef      = useRef(false);
-  // ✅ FIX: unreadCounts ka ref — socket closure mein hamesha latest value milegi
-  const unreadCountsRef     = useRef<Record<string, number>>({});
+  const myIdRef              = useRef<string>("");
+  const tokenRef             = useRef<string>("");
+  const profileOpenRef       = useRef(false);
+  // ✅ FIX: ref taaki socket closure mein hamesha latest counts mile
+  const unreadCountsRef      = useRef<Record<string, number>>({});
 
-  /* ── HELPER: unreadCounts update karo (state + ref + dispatch ek saath) ── */
+  // ✅ HELPER: unreadCounts update + ref sync + navbar sync — sab ek jagah
   const updateUnreadCounts = (
     updater: (prev: Record<string, number>) => Record<string, number>
   ) => {
     setUnreadCounts(prev => {
       const updated = updater(prev);
       unreadCountsRef.current = updated;
-      dispatchMsgCount(updated);
+      // Navbar ko live update bhejo
+      const total = Object.values(updated).reduce((a, b) => a + b, 0);
+      syncMsgCount(total);
       return updated;
     });
   };
@@ -105,11 +117,11 @@ function MessagesInner() {
     }
   }, []);
 
-  /* ── Browser back button intercept — mobile pe ── */
+  /* ── Browser back button — mobile ── */
   useEffect(() => {
     if (!activeConv) return;
     window.history.pushState({ chatOpen: true }, "");
-    const handlePopState = (e: PopStateEvent) => {
+    const handlePopState = () => {
       setShowSidebar(true);
       setActiveConv(null);
       activeConvRef.current = null;
@@ -120,23 +132,6 @@ function MessagesInner() {
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, [activeConv]);
-
-  const dispatchMsgCount = (counts: Record<string, number>) => {
-    const total = Object.values(counts).reduce((a, b) => a + b, 0);
-    msgChannel?.postMessage({ type: "msg_unread_update", count: total });
-    window.dispatchEvent(new CustomEvent("msg_unread_update", { detail: { count: total } }));
-  };
-
-  const fetchFullProfile = async (userId: string) => {
-    if (!userId) return null;
-    try {
-      const res  = await fetch(`${API}/profile/user/${userId}`, {
-        headers: { Authorization: `Bearer ${tokenRef.current}` },
-      });
-      const data = await res.json();
-      return data?.profile || data?.data || (data?._id ? data : null);
-    } catch { return null; }
-  };
 
   /* ── SOCKET ── */
   useEffect(() => {
@@ -158,7 +153,7 @@ function MessagesInner() {
       const isMe      = senderId === myIdRef.current;
 
       if (conv && msgConvId === conv._id?.toString()) {
-        // Active conversation — message directly add karo
+        // ── Active conversation: message seedha add karo ──
         if (!isMe) {
           setMessages(prev =>
             prev.some(m => m._id === msg._id) ? prev : [...prev, msg]
@@ -177,8 +172,17 @@ function MessagesInner() {
             return [...prev, msg];
           });
         }
+        // Active conv ka last message sidebar mein update karo
+        setConversations(prev =>
+          prev.map(c =>
+            c._id?.toString() === msgConvId
+              ? { ...c, lastMessage: msg.text, updatedAt: msg.createdAt }
+              : c
+          )
+        );
       } else if (!isMe && msgConvId) {
-        // ✅ FIX: ref se latest counts lo — closure stale nahi hoga
+        // ── Background conversation: count badhao + navbar update karo ──
+        // ✅ KEY FIX: ref se latest counts lo (closure stale nahi hoga)
         const currentCounts = unreadCountsRef.current;
         const updated = {
           ...currentCounts,
@@ -186,30 +190,20 @@ function MessagesInner() {
         };
         unreadCountsRef.current = updated;
         setUnreadCounts(updated);
-        dispatchMsgCount(updated);
 
-        // Conversation ko top pe le jao aur last message update karo
+        // ✅ Navbar ko LIVE update karo — localStorage + events
+        const total = Object.values(updated).reduce((a, b) => a + b, 0);
+        syncMsgCount(total);
+
+        // Conversation top pe le jao
         setConversations(prev => {
           const idx = prev.findIndex(c => c._id?.toString() === msgConvId);
           if (idx === -1) return prev;
-          const updated = [...prev];
-          const [moved] = updated.splice(idx, 1);
-          return [
-            { ...moved, lastMessage: msg.text, updatedAt: msg.createdAt },
-            ...updated,
-          ];
+          const arr = [...prev];
+          const [moved] = arr.splice(idx, 1);
+          return [{ ...moved, lastMessage: msg.text, updatedAt: msg.createdAt }, ...arr];
         });
-        return; // neeche wala map na chale duplicate update ke liye
       }
-
-      // Active conv ka last message bhi update karo sidebar mein
-      setConversations(prev =>
-        prev.map(c =>
-          c._id?.toString() === msgConvId
-            ? { ...c, lastMessage: msg.text, updatedAt: msg.createdAt }
-            : c
-        )
-      );
     });
 
     return () => {
@@ -224,19 +218,15 @@ function MessagesInner() {
     fetchedConversations.current = true;
     setLoadingConvs(true);
 
-    fetch(`${API}/conversations/my`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    fetch(`${API}/conversations/my`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
         const rawConvs = data?.data || data?.conversations || data || [];
-        const seen  = new Set<string>();
+        const seen = new Set<string>();
         const convs = rawConvs.filter((c: any) => {
           const parts   = c.participants || [];
-          const otherId = parts.find(
-            (p: any) => (p?._id || p)?.toString() !== myIdRef.current
-          );
-          const key = (otherId?._id || otherId || c._id)?.toString();
+          const otherId = parts.find((p: any) => (p?._id || p)?.toString() !== myIdRef.current);
+          const key     = (otherId?._id || otherId || c._id)?.toString();
           if (seen.has(key)) return false;
           seen.add(key);
           return true;
@@ -249,19 +239,19 @@ function MessagesInner() {
 
         const counts: Record<string, number> = {};
         convs.forEach((c: any) => {
-          const uc =
-            c.unreadCount ??
-            c.unread ??
-            c.unreadCounts?.[myIdRef.current] ??
-            0;
+          const uc = c.unreadCount ?? c.unread ?? c.unreadCounts?.[myIdRef.current] ?? 0;
           if (uc > 0) counts[c._id] = uc;
         });
 
         if (Object.keys(counts).length > 0) {
-          // ✅ FIX: ref bhi sync karo initial load pe
           unreadCountsRef.current = counts;
           setUnreadCounts(counts);
-          dispatchMsgCount(counts);
+          // ✅ Page load pe bhi navbar sync karo
+          const total = Object.values(counts).reduce((a, b) => a + b, 0);
+          syncMsgCount(total);
+        } else {
+          // ✅ Koi unread nahi — navbar ko 0 bhejo
+          syncMsgCount(0);
         }
 
         const targetUserId = searchParams?.get("userId") || searchParams?.get("with");
@@ -269,28 +259,19 @@ function MessagesInner() {
 
         if (targetUserId) {
           const matched = convs.find((c: any) =>
-            c.participants?.some(
-              (p: any) => (p?._id || p)?.toString() === targetUserId
-            )
+            c.participants?.some((p: any) => (p?._id || p)?.toString() === targetUserId)
           );
           if (matched) {
             setActiveConv(matched);
             activeConvRef.current = matched;
             setShowSidebar(false);
-            updateUnreadCounts(prev => {
-              const n = { ...prev };
-              delete n[matched._id];
-              return n;
-            });
+            updateUnreadCounts(prev => { const n = { ...prev }; delete n[matched._id]; return n; });
           } else {
             const body: any = { participantId: targetUserId };
             if (targetCampId) body.campaignId = targetCampId;
             fetch(`${API}/conversations/create`, {
               method: "POST",
-              headers: {
-                Authorization: `Bearer ${tokenRef.current}`,
-                "Content-Type": "application/json",
-              },
+              headers: { Authorization: `Bearer ${tokenRef.current}`, "Content-Type": "application/json" },
               body: JSON.stringify(body),
             })
               .then(r => r.json())
@@ -330,7 +311,7 @@ function MessagesInner() {
               return incoming;
             });
           }
-          // ✅ FIX: read hone pe ref bhi update karo
+          // ✅ Conv read hone pe count hatao + navbar update
           updateUnreadCounts(prev => {
             if (!prev[convId]) return prev;
             const updated = { ...prev };
@@ -357,37 +338,30 @@ function MessagesInner() {
     if (!conv?.participants) return null;
     const id    = myId || myIdRef.current;
     if (!id) return conv.participants[0] || null;
-    const other = conv.participants.find(
-      (p: any) => (p?._id || p)?.toString() !== id
-    );
+    const other = conv.participants.find((p: any) => (p?._id || p)?.toString() !== id);
     return other || conv.participants[0] || null;
   };
 
   const getName = (p: any): string => {
     if (!p || typeof p === "string") return "User";
-    return (
-      p.name || p.fullName || p.username || p.displayName ||
-      p.email?.split("@")[0] || "User"
-    );
+    return p.name || p.fullName || p.username || p.displayName || p.email?.split("@")[0] || "User";
   };
 
   const getAvatar = (p: any): string => {
     if (!p || typeof p === "string") return "";
-    return (
-      p.profileImage || p.profilePicture || p.avatar ||
-      p.photo || p.image || p.picture || ""
-    );
+    return p.profileImage || p.profilePicture || p.avatar || p.photo || p.image || p.picture || "";
   };
 
   const getInitial    = (p: any) => getName(p).charAt(0).toUpperCase();
-  const formatTime    = (date: string) => {
+
+  const formatTime = (date: string) => {
     if (!date) return "";
     const d    = new Date(date);
     const diff = Date.now() - d.getTime();
-    if (diff < 86400000)
-      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (diff < 86400000) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     return d.toLocaleDateString([], { day: "2-digit", month: "short" });
   };
+
   const formatMsgTime = (date: string) => {
     if (!date) return "";
     return new Date(date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -420,37 +394,28 @@ function MessagesInner() {
       setTimeout(() => inputRef.current?.classList.remove("shake"), 500);
       return;
     }
-    const text    = newMsg.trim();
-    const tempId  = `temp_${Date.now()}`;
+    const text   = newMsg.trim();
+    const tempId = `temp_${Date.now()}`;
     const tempMsg = {
-      _id: tempId,
-      text,
+      _id: tempId, text,
       sender: myIdRef.current || myId,
       conversationId: activeConv._id,
       createdAt: new Date().toISOString(),
       _temp: true,
     };
     setMessages(prev => [...prev, tempMsg]);
-    setNewMsg("");
-    setBannedWord(null);
-    setShowWarning(false);
+    setNewMsg(""); setBannedWord(null); setShowWarning(false);
     inputRef.current?.focus();
-
     try {
       setSending(true);
       const res  = await fetch(`${API}/conversations/send/${activeConv._id}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ text }),
       });
       const data = await res.json();
       if (data?.success && data?.data) {
-        setMessages(prev =>
-          prev.map(m => (m._id === tempId ? { ...data.data } : m))
-        );
+        setMessages(prev => prev.map(m => m._id === tempId ? { ...data.data } : m));
         setConversations(prev =>
           prev.map(c =>
             c._id === activeConv._id
@@ -463,9 +428,7 @@ function MessagesInner() {
       console.error(err);
       setMessages(prev => prev.filter(m => m._id !== tempId));
       setNewMsg(text);
-    } finally {
-      setSending(false);
-    }
+    } finally { setSending(false); }
   };
 
   const openConv = (conv: any) => {
@@ -474,14 +437,12 @@ function MessagesInner() {
     setShowSidebar(false);
     setBannedWord(null);
     setShowWarning(false);
-
-    // ✅ FIX: updateUnreadCounts use karo taaki ref bhi sync ho
+    // ✅ Conv open karte waqt count hatao + navbar sync
     updateUnreadCounts(prev => {
       const updated = { ...prev };
       delete updated[conv._id];
       return updated;
     });
-
     fetch(`${API}/conversations/read/${conv._id}`, {
       method: "POST",
       headers: { Authorization: `Bearer ${tokenRef.current}` },
@@ -494,13 +455,17 @@ function MessagesInner() {
     const userId = (other?._id || other)?.toString();
     profileOpenRef.current = true;
     if (!userId || typeof userId !== "string" || userId.length < 10) {
-      setSelectedProfile(other);
-      return;
+      setSelectedProfile(other); return;
     }
     setProfileLoading(true);
-    const fullProfile = await fetchFullProfile(userId);
+    try {
+      const res  = await fetch(`${API}/profile/user/${userId}`, {
+        headers: { Authorization: `Bearer ${tokenRef.current}` },
+      });
+      const data = await res.json();
+      setSelectedProfile(data?.profile || data?.data || (data?._id ? data : null) || other);
+    } catch { setSelectedProfile(other); }
     setProfileLoading(false);
-    setSelectedProfile(fullProfile || other);
   };
 
   const closeProfile = () => {
@@ -513,17 +478,13 @@ function MessagesInner() {
 
   const grouped = messages.reduce((acc: any[], msg, i) => {
     const currDate = new Date(msg.createdAt).toDateString();
-    const prevDate = messages[i - 1]
-      ? new Date(messages[i - 1].createdAt).toDateString()
-      : null;
+    const prevDate = messages[i - 1] ? new Date(messages[i - 1].createdAt).toDateString() : null;
     if (currDate !== prevDate) {
       const label =
         currDate === new Date().toDateString()
           ? "Today"
           : new Date(msg.createdAt).toLocaleDateString([], {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
+              weekday: "long", day: "numeric", month: "long",
             });
       acc.push({ type: "date", label });
     }
@@ -542,8 +503,6 @@ function MessagesInner() {
           --bubble-me: #dcf8c6; --bubble-them: #ffffff; --badge: #25d366;
         }
         .wa-root { display: flex; height: 100dvh; font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); overflow: hidden; position: relative; }
-
-        /* ── SIDEBAR ── */
         .wa-sidebar { width: 380px; min-width: 380px; background: #fff; border-right: 1px solid var(--border); display: flex; flex-direction: column; transition: transform 0.3s ease; z-index: 10; }
         .wa-sidebar-hdr { background: #f0f2f5; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; height: 60px; }
         .wa-sidebar-title { font-size: 19px; font-weight: 700; color: var(--text1); }
@@ -572,43 +531,14 @@ function MessagesInner() {
         .wa-unread-badge { background: var(--badge); color: #fff; font-size: 11px; font-weight: 700; min-width: 20px; height: 20px; border-radius: 100px; display: flex; align-items: center; justify-content: center; padding: 0 5px; flex-shrink: 0; animation: badgePop 0.2s ease; }
         @keyframes badgePop { from{transform:scale(0.5);opacity:0}to{transform:scale(1);opacity:1} }
         .wa-conv-empty { padding: 40px 20px; text-align: center; color: var(--text2); font-size: 14px; }
-
-        /* ── CHAT AREA ── */
         .wa-chat { flex: 1; display: flex; flex-direction: column; min-width: 0; background: #efeae2; position: relative; }
         .wa-chat::before { content:''; position:absolute; inset:0; opacity:0.08; background-image:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E"); pointer-events:none; z-index:0; }
-
-        /* ── CHAT HEADER ── */
-        .wa-chat-hdr { background:#fff; padding:10px 16px; display:flex; align-items:center; gap:12px; height:60px; border-bottom:1px solid var(--border); position:relative; z-index:2; cursor:pointer; transition:background 0.15s; }
-        .wa-chat-hdr:hover { background:#f5f6f6; }
-
-        /* ── BACK BUTTON — desktop hide, mobile show ── */
-        .wa-back-btn {
-          display: none;
-          background: none;
-          border: none;
-          cursor: pointer;
-          padding: 4px 8px 4px 0;
-          font-size: 28px;
-          font-weight: 900;
-          color: #111b21 !important;
-          line-height: 1;
-          align-items: center;
-          justify-content: center;
-          min-width: 44px;
-          min-height: 44px;
-          flex-shrink: 0;
-          -webkit-tap-highlight-color: transparent;
-          font-family: system-ui, -apple-system, sans-serif;
-        }
-
+        .wa-chat-hdr { background:#fff; padding:10px 16px; display:flex; align-items:center; gap:12px; height:60px; border-bottom:1px solid var(--border); position:relative; z-index:2; transition:background 0.15s; }
+        .wa-back-btn { display: none; background: none; border: none; cursor: pointer; padding: 4px 8px 4px 0; line-height: 1; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; flex-shrink: 0; -webkit-tap-highlight-color: transparent; }
         .wa-chat-av { width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg,#667eea,#764ba2); display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700; color:#fff; overflow:hidden; flex-shrink:0; }
         .wa-chat-av img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
-        .wa-chat-name { font-size:15px; font-weight:700; color:#111b21 !important; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .wa-chat-sub  { font-size:12px; color:#667781 !important; margin-top:1px; }
         .wa-hdr-info  { flex:1; min-width:0; overflow:hidden; }
         .wa-safe-chip { margin-left:auto; display:flex; align-items:center; gap:5px; padding:4px 12px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:100px; font-size:11px; font-weight:600; color:#166634; flex-shrink:0; }
-
-        /* ── MESSAGES ── */
         .wa-messages { flex:1; overflow-y:auto; padding:12px 8%; display:flex; flex-direction:column; gap:2px; position:relative; z-index:1; }
         .wa-messages::-webkit-scrollbar { width:3px; }
         .wa-messages::-webkit-scrollbar-thumb { background:#ccc; border-radius:2px; }
@@ -617,24 +547,11 @@ function MessagesInner() {
         .wa-bwrap { display:flex; margin-bottom:1px; }
         .wa-bwrap.me   { justify-content:flex-end; }
         .wa-bwrap.them { justify-content:flex-start; }
-
-        /* ── BUBBLES ── */
-        .wa-bubble {
-          max-width: 65%;
-          padding: 7px 10px 5px;
-          border-radius: 8px;
-          font-size: 14px;
-          line-height: 1.5;
-          position: relative;
-          box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-          word-break: break-word;
-          color: #111b21 !important;
-        }
-        .wa-bubble.me   { background: #dcf8c6; border-top-right-radius: 2px; color: #111b21 !important; }
-        .wa-bubble.them { background: #ffffff; border-top-left-radius: 2px; color: #111b21 !important; }
-        .wa-bubble.temp { opacity: 0.75; color: #111b21 !important; }
-        .wa-bubble.flagged { border: 2px solid #fbbf24 !important; background: #fffbeb !important; color: #111b21 !important; }
-
+        .wa-bubble { max-width:65%; padding:7px 10px 5px; border-radius:8px; font-size:14px; line-height:1.5; position:relative; box-shadow:0 1px 2px rgba(0,0,0,0.1); word-break:break-word; color:#111b21 !important; }
+        .wa-bubble.me   { background:#dcf8c6; border-top-right-radius:2px; }
+        .wa-bubble.them { background:#ffffff; border-top-left-radius:2px; }
+        .wa-bubble.temp { opacity:0.75; }
+        .wa-bubble.flagged { border:2px solid #fbbf24 !important; background:#fffbeb !important; }
         .wa-tail-me   { position:absolute; top:0; right:-8px; width:0; height:0; border-left:8px solid #dcf8c6; border-bottom:8px solid transparent; }
         .wa-tail-them { position:absolute; top:0; left:-8px; width:0; height:0; border-right:8px solid #ffffff; border-bottom:8px solid transparent; }
         .wa-bmeta { display:flex; align-items:center; justify-content:flex-end; gap:3px; margin-top:2px; }
@@ -642,14 +559,10 @@ function MessagesInner() {
         .wa-tick { font-size:11px; color:#53bdeb; }
         .wa-tick.pending { color:#aaa; }
         .wa-flagged-label { font-size:10px; font-weight:700; color:#d97706; margin-bottom:3px; }
-
-        /* ── WARNING ── */
         .wa-keyword-warning { margin:0 12px 8px; padding:10px 14px; background:#fffbeb; border:1.5px solid #fbbf24; border-radius:12px; font-size:12px; font-weight:600; color:#92400e; line-height:1.6; display:flex; gap:8px; align-items:flex-start; position:relative; z-index:2; animation:slideUpWarn 0.2s ease; }
         @keyframes slideUpWarn { from{transform:translateY(6px);opacity:0}to{transform:translateY(0);opacity:1} }
         .wa-warn-icon { font-size:16px; flex-shrink:0; }
         .wa-warn-dismiss { margin-left:auto; font-size:14px; cursor:pointer; color:#b45309; flex-shrink:0; line-height:1; padding:0 2px; }
-
-        /* ── INPUT BAR ── */
         .wa-input-bar { background:var(--bg); padding:8px 16px; display:flex; align-items:center; gap:10px; position:relative; z-index:2; flex-direction:column; }
         .wa-input-row { width:100%; display:flex; align-items:center; gap:10px; }
         .wa-input-wrap { flex:1; background:#fff; border-radius:26px; display:flex; align-items:center; padding:9px 16px; gap:10px; box-shadow:0 1px 3px rgba(0,0,0,0.06); transition:box-shadow 0.2s; }
@@ -662,23 +575,17 @@ function MessagesInner() {
         .wa-blocked-hint { width:100%; text-align:center; font-size:11px; font-weight:600; color:#ef4444; padding:0 0 2px; }
         @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-5px)} 40%,80%{transform:translateX(5px)} }
         .shake { animation:shake 0.4s ease!important; }
-
-        /* ── NO CONV ── */
         .wa-no-conv { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; position:relative; z-index:1; border-left:1px solid var(--border); background:#f8f9fa; }
         .wa-no-conv-icon  { font-size:56px; opacity:0.25; }
         .wa-no-conv-title { font-size:26px; font-weight:300; color:var(--text1); }
         .wa-no-conv-sub   { font-size:14px; color:var(--text2); }
-
-        /* ── PROFILE PANEL ── */
         .prof-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:100; display:flex; align-items:flex-start; justify-content:flex-end; animation:fadeIn 0.18s ease; }
         @keyframes fadeIn { from{opacity:0}to{opacity:1} }
         .prof-panel { width:360px; height:100dvh; background:#fff; display:flex; flex-direction:column; animation:slideRight 0.22s ease; overflow-y:auto; }
         @keyframes slideRight { from{transform:translateX(100%)}to{transform:translateX(0)} }
         .prof-cover { background:#111b21; padding:50px 24px 28px; display:flex; flex-direction:column; align-items:center; position:relative; }
         .prof-close { position:absolute; top:12px; right:12px; background:rgba(255,255,255,0.1); border:none; color:#fff; width:34px; height:34px; border-radius:50%; cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center; }
-        .prof-close:hover { background:rgba(255,255,255,0.22); }
         .prof-back-btn { position:absolute; top:12px; left:12px; background:rgba(255,255,255,0.1); border:none; color:#fff; width:34px; height:34px; border-radius:50%; cursor:pointer; font-size:18px; display:none; align-items:center; justify-content:center; }
-        .prof-back-btn:hover { background:rgba(255,255,255,0.22); }
         .prof-av-big { width:120px; height:120px; border-radius:50%; background:linear-gradient(135deg,#667eea,#764ba2); display:flex; align-items:center; justify-content:center; font-size:44px; font-weight:800; color:#fff; overflow:hidden; cursor:zoom-in; transition:transform 0.2s; margin-bottom:14px; border:3px solid rgba(255,255,255,0.15); }
         .prof-av-big:hover { transform:scale(1.04); }
         .prof-av-big img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
@@ -695,8 +602,6 @@ function MessagesInner() {
         .prof-stat { background:#fff; padding:14px 8px; text-align:center; }
         .prof-stat-num { font-size:18px; font-weight:800; color:var(--text1); }
         .prof-stat-lbl { font-size:10px; color:var(--text2); text-transform:uppercase; letter-spacing:0.05em; margin-top:2px; }
-
-        /* ── DP OVERLAY ── */
         .dp-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.93); z-index:200; display:flex; align-items:center; justify-content:center; cursor:zoom-out; animation:fadeIn 0.18s ease; }
         .dp-img  { max-width:90vw; max-height:90dvh; border-radius:50%; object-fit:cover; animation:zoomIn 0.2s ease; }
         .dp-init { width:min(80vw,80dvh); height:min(80vw,80dvh); border-radius:50%; background:linear-gradient(135deg,#667eea,#764ba2); display:flex; align-items:center; justify-content:center; font-size:clamp(60px,15vw,140px); font-weight:800; color:#fff; animation:zoomIn 0.2s ease; }
@@ -705,80 +610,27 @@ function MessagesInner() {
         .spin { width:24px; height:24px; border:2.5px solid #e0e0e0; border-top-color:var(--primary); border-radius:50%; animation:spin 0.8s linear infinite; }
         .spin-wrap { display:flex; justify-content:center; padding:30px; }
 
-        /* ══════════════════════════════════════════
-           MOBILE STYLES
-        ══════════════════════════════════════════ */
         @media (max-width: 768px) {
-          .wa-sidebar {
-            position: fixed;
-            inset: 0;
-            width: 100% !important;
-            min-width: unset;
-            z-index: 20;
-            transform: translateX(0);
-            transition: transform 0.3s ease;
-          }
-          .wa-sidebar.hidden {
-            transform: translateX(-100%);
-          }
-          .wa-chat {
-            position: fixed;
-            inset: 0;
-            z-index: 15;
-          }
-          .wa-chat.hidden {
-            display: none !important;
-          }
-          .wa-back-btn {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            background: none !important;
-            border: none !important;
-            cursor: pointer !important;
-            padding: 0 6px !important;
-            min-width: 44px !important;
-            min-height: 56px !important;
-            flex-shrink: 0 !important;
-            -webkit-tap-highlight-color: transparent !important;
-          }
-          .wa-chat-hdr {
-            height: 64px !important;
-            padding: 0 12px 0 4px !important;
-          }
-          .wa-bubble { max-width: 82%; }
-          .wa-no-conv { display: none; }
-          .wa-messages { padding: 12px 4%; }
-          .wa-safe-chip { display: none; }
-          .prof-overlay {
-            justify-content: flex-start !important;
-            align-items: flex-start !important;
-          }
-          .prof-panel {
-            width: 100% !important;
-            height: 100dvh !important;
-            animation: slideUp 0.25s ease !important;
-          }
-          @keyframes slideUp {
-            from { transform: translateY(100%); }
-            to   { transform: translateY(0); }
-          }
-          .prof-back-btn {
-            display: flex !important;
-          }
-          .prof-close {
-            display: none !important;
-          }
-          .prof-av-big {
-            width: 96px !important;
-            height: 96px !important;
-            font-size: 36px !important;
-          }
-          .prof-cover-name { font-size: 18px !important; }
+          .wa-sidebar { position:fixed; inset:0; width:100% !important; min-width:unset; z-index:20; transform:translateX(0); transition:transform 0.3s ease; }
+          .wa-sidebar.hidden { transform:translateX(-100%); }
+          .wa-chat { position:fixed; inset:0; z-index:15; }
+          .wa-chat.hidden { display:none !important; }
+          .wa-back-btn { display:flex !important; align-items:center !important; justify-content:center !important; padding:0 6px !important; min-width:44px !important; min-height:56px !important; flex-shrink:0 !important; }
+          .wa-chat-hdr { height:64px !important; padding:0 12px 0 4px !important; }
+          .wa-bubble { max-width:82%; }
+          .wa-no-conv { display:none; }
+          .wa-messages { padding:12px 4%; }
+          .wa-safe-chip { display:none; }
+          .prof-overlay { justify-content:flex-start !important; align-items:flex-start !important; }
+          .prof-panel { width:100% !important; height:100dvh !important; animation:slideUp 0.25s ease !important; }
+          @keyframes slideUp { from{transform:translateY(100%)}to{transform:translateY(0)} }
+          .prof-back-btn { display:flex !important; }
+          .prof-close { display:none !important; }
+          .prof-av-big { width:96px !important; height:96px !important; font-size:36px !important; }
+          .prof-cover-name { font-size:18px !important; }
         }
-
         @media (min-width: 769px) {
-          .wa-back-btn { display: none !important; }
+          .wa-back-btn { display:none !important; }
         }
       `}</style>
 
@@ -789,9 +641,7 @@ function MessagesInner() {
           <div className="wa-sidebar-hdr">
             <span className="wa-sidebar-title">Messages</span>
             {totalUnread > 0 && (
-              <span className="wa-total-badge">
-                {totalUnread > 99 ? "99+" : totalUnread}
-              </span>
+              <span className="wa-total-badge">{totalUnread > 99 ? "99+" : totalUnread}</span>
             )}
           </div>
           <div className="wa-search-bar">
@@ -805,46 +655,40 @@ function MessagesInner() {
               <div className="spin-wrap"><div className="spin" /></div>
             ) : conversations.length === 0 ? (
               <div className="wa-conv-empty">No conversations yet</div>
-            ) : (
-              conversations.map(conv => {
-                const other    = getOtherParticipant(conv);
-                const av       = getAvatar(other);
-                const name     = getName(other);
-                const unread   = unreadCounts[conv._id] || 0;
-                const isActive = activeConv?._id === conv._id;
-                return (
-                  <div
-                    key={conv._id}
-                    className={`wa-conv-item${isActive ? " active" : ""}${unread > 0 && !isActive ? " unread" : ""}`}
-                    onClick={() => openConv(conv)}
-                  >
-                    <div className="wa-conv-av">
-                      {av ? <img src={av} alt={name} /> : getInitial(other)}
+            ) : conversations.map(conv => {
+              const other    = getOtherParticipant(conv);
+              const av       = getAvatar(other);
+              const name     = getName(other);
+              const unread   = unreadCounts[conv._id] || 0;
+              const isActive = activeConv?._id === conv._id;
+              return (
+                <div
+                  key={conv._id}
+                  className={`wa-conv-item${isActive ? " active" : ""}${unread > 0 && !isActive ? " unread" : ""}`}
+                  onClick={() => openConv(conv)}
+                >
+                  <div className="wa-conv-av">
+                    {av ? <img src={av} alt={name} /> : getInitial(other)}
+                  </div>
+                  <div className="wa-conv-info">
+                    <div className="wa-conv-top">
+                      <span className="wa-conv-name">{name}</span>
+                      <span className={`wa-conv-time${unread > 0 && !isActive ? " unread-time" : ""}`}>
+                        {formatTime(conv.updatedAt)}
+                      </span>
                     </div>
-                    <div className="wa-conv-info">
-                      <div className="wa-conv-top">
-                        <span className="wa-conv-name">{name}</span>
-                        <span className={`wa-conv-time${unread > 0 && !isActive ? " unread-time" : ""}`}>
-                          {formatTime(conv.updatedAt)}
-                        </span>
+                    <div className="wa-conv-bottom">
+                      <div className="wa-conv-last">
+                        {conv.lastMessage || conv.messages?.[conv.messages.length - 1]?.text || "Tap to open chat"}
                       </div>
-                      <div className="wa-conv-bottom">
-                        <div className="wa-conv-last">
-                          {conv.lastMessage ||
-                            conv.messages?.[conv.messages.length - 1]?.text ||
-                            "Tap to open chat"}
-                        </div>
-                        {unread > 0 && !isActive && (
-                          <span className="wa-unread-badge">
-                            {unread > 99 ? "99+" : unread}
-                          </span>
-                        )}
-                      </div>
+                      {unread > 0 && !isActive && (
+                        <span className="wa-unread-badge">{unread > 99 ? "99+" : unread}</span>
+                      )}
                     </div>
                   </div>
-                );
-              })
-            )}
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -852,15 +696,11 @@ function MessagesInner() {
         <div className={`wa-chat${!activeConv ? " hidden" : ""}`}>
           {activeConv ? (
             <>
-              {/* Header */}
               <div className="wa-chat-hdr" style={{ cursor: "default", padding: "0 12px 0 4px" }}>
-
-                {/* BACK BUTTON */}
                 <button
                   className="wa-back-btn"
                   onClick={e => {
-                    e.preventDefault();
-                    e.stopPropagation();
+                    e.preventDefault(); e.stopPropagation();
                     setShowSidebar(true);
                     setActiveConv(null);
                     activeConvRef.current = null;
@@ -874,7 +714,6 @@ function MessagesInner() {
                   </svg>
                 </button>
 
-                {/* Profile clickable */}
                 <div
                   onClick={handleProfileClick}
                   style={{
@@ -886,27 +725,15 @@ function MessagesInner() {
                 >
                   <div className="wa-chat-av" style={{ flexShrink: 0, width: 42, height: 42 }}>
                     {getAvatar(activeOther)
-                      ? <img src={getAvatar(activeOther)} alt="dp"
-                          style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
-                        />
-                      : <span style={{ color: "#fff", fontWeight: 800, fontSize: 16 }}>
-                          {getInitial(activeOther)}
-                        </span>
+                      ? <img src={getAvatar(activeOther)} alt="dp" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} />
+                      : <span style={{ color: "#fff", fontWeight: 800, fontSize: 16 }}>{getInitial(activeOther)}</span>
                     }
                   </div>
                   <div style={{ minWidth: 0, flex: 1, overflow: "hidden" }}>
-                    <div style={{
-                      color: "#111b21", fontWeight: 700, fontSize: "15px",
-                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                      fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: "1.2",
-                    }}>
+                    <div style={{ color: "#111b21", fontWeight: 700, fontSize: "15px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: "1.2" }}>
                       {getName(activeOther)}
                     </div>
-                    <div style={{
-                      color: "#667781", fontSize: "12px", marginTop: "2px",
-                      fontFamily: "'Plus Jakarta Sans', sans-serif",
-                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                    }}>
+                    <div style={{ color: "#667781", fontSize: "12px", marginTop: "2px", fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {profileLoading ? "Loading..." : (activeOther?.role || "tap to view profile")}
                     </div>
                   </div>
@@ -915,13 +742,10 @@ function MessagesInner() {
                 <div className="wa-safe-chip">🔒 Safe</div>
               </div>
 
-              {/* Messages */}
               <div className="wa-messages">
                 {grouped.map((item, i) =>
                   item.type === "date" ? (
-                    <div key={`d${i}`} className="wa-date-lbl">
-                      <span>{item.label}</span>
-                    </div>
+                    <div key={`d${i}`} className="wa-date-lbl"><span>{item.label}</span></div>
                   ) : (() => {
                     const senderId  = (item.sender?._id || item.sender)?.toString();
                     const isMe      = myId && senderId === myId;
@@ -930,13 +754,8 @@ function MessagesInner() {
                     return (
                       <div key={item._id || i} className={`wa-bwrap ${isMe ? "me" : "them"}`}>
                         <div className={`wa-bubble ${isMe ? "me" : "them"}${isTemp ? " temp" : ""}${isFlagged ? " flagged" : ""}`}>
-                          {isMe
-                            ? <div className="wa-tail-me" />
-                            : <div className="wa-tail-them" />
-                          }
-                          {isFlagged && (
-                            <div className="wa-flagged-label">⚠️ Flagged message</div>
-                          )}
+                          {isMe ? <div className="wa-tail-me" /> : <div className="wa-tail-them" />}
+                          {isFlagged && <div className="wa-flagged-label">⚠️ Flagged message</div>}
                           <span style={{ color: "#111b21", fontSize: "14px" }}>{item.text}</span>
                           <div className="wa-bmeta">
                             <span className="wa-btime">{formatMsgTime(item.createdAt)}</span>
@@ -954,7 +773,6 @@ function MessagesInner() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Warning */}
               {showWarning && bannedWord && (
                 <div className="wa-keyword-warning">
                   <span className="wa-warn-icon">🚫</span>
@@ -966,7 +784,6 @@ function MessagesInner() {
                 </div>
               )}
 
-              {/* Input bar */}
               <div className="wa-input-bar">
                 <div className="wa-input-row">
                   <div className={`wa-input-wrap${bannedWord ? " blocked" : ""}`}>
@@ -976,11 +793,7 @@ function MessagesInner() {
                       value={newMsg}
                       onChange={e => handleInputChange(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()}
-                      placeholder={
-                        bannedWord
-                          ? "⚠️ Remove restricted word to send..."
-                          : "Type a message"
-                      }
+                      placeholder={bannedWord ? "⚠️ Remove restricted word to send..." : "Type a message"}
                       style={bannedWord ? { color: "#dc2626" } : undefined}
                     />
                   </div>
@@ -992,16 +805,12 @@ function MessagesInner() {
                   >
                     {bannedWord
                       ? <span style={{ fontSize: 18 }}>🚫</span>
-                      : <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff">
-                          <path d="M1.101 21.757L23.8 12.028 1.101 2.3l.011 7.912 13.623 1.816-13.623 1.817-.011 7.912z"/>
-                        </svg>
+                      : <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff"><path d="M1.101 21.757L23.8 12.028 1.101 2.3l.011 7.912 13.623 1.816-13.623 1.817-.011 7.912z"/></svg>
                     }
                   </button>
                 </div>
                 {bannedWord && (
-                  <div className="wa-blocked-hint">
-                    ❌ Message blocked — remove "{bannedWord}" to continue
-                  </div>
+                  <div className="wa-blocked-hint">❌ Message blocked — remove "{bannedWord}" to continue</div>
                 )}
               </div>
             </>
@@ -1015,28 +824,19 @@ function MessagesInner() {
         </div>
       </div>
 
-      {/* ── PROFILE PANEL ── */}
       {selectedProfile && !showDp && (
-        <div
-          className="prof-overlay"
-          onClick={e => { if (e.target === e.currentTarget) closeProfile(); }}
-        >
+        <div className="prof-overlay" onClick={e => { if (e.target === e.currentTarget) closeProfile(); }}>
           <div className="prof-panel">
             <div className="prof-cover">
               <button className="prof-back-btn" onClick={closeProfile}>←</button>
               <button className="prof-close" onClick={closeProfile}>✕</button>
-
               <div className="prof-av-big" onClick={() => setShowDp(true)}>
-                {getAvatar(selectedProfile)
-                  ? <img src={getAvatar(selectedProfile)} alt="dp" />
-                  : getInitial(selectedProfile)
-                }
+                {getAvatar(selectedProfile) ? <img src={getAvatar(selectedProfile)} alt="dp" /> : getInitial(selectedProfile)}
               </div>
               <div className="prof-cover-name">{getName(selectedProfile)}</div>
               <div className="prof-cover-role">{selectedProfile?.role || "Creator"}</div>
             </div>
 
-            {/* Stats */}
             <div className="prof-section">
               {(() => {
                 const isBrandProfile = selectedProfile?.role?.toLowerCase() === "brand";
@@ -1051,9 +851,7 @@ function MessagesInner() {
                     )}
                     <div className="prof-stat">
                       <div className="prof-stat-num">
-                        {Array.isArray(selectedProfile?.categories)
-                          ? selectedProfile.categories.length
-                          : selectedProfile?.categories ? 1 : 0}
+                        {Array.isArray(selectedProfile?.categories) ? selectedProfile.categories.length : selectedProfile?.categories ? 1 : 0}
                       </div>
                       <div className="prof-stat-lbl">Niches</div>
                     </div>
@@ -1066,67 +864,37 @@ function MessagesInner() {
               })()}
             </div>
 
-            {/* About */}
             <div className="prof-section">
               <div className="prof-sec-label">About</div>
               {selectedProfile?.bio && (
-                <div className="prof-row">
-                  <span className="prof-row-icon">💬</span>
-                  <div className="prof-row-text">{selectedProfile.bio}</div>
-                </div>
+                <div className="prof-row"><span className="prof-row-icon">💬</span><div className="prof-row-text">{selectedProfile.bio}</div></div>
               )}
               {(selectedProfile?.location || selectedProfile?.city) && (
-                <div className="prof-row">
-                  <span className="prof-row-icon">📍</span>
-                  <div className="prof-row-text">
-                    {selectedProfile.location || selectedProfile.city}
-                  </div>
-                </div>
+                <div className="prof-row"><span className="prof-row-icon">📍</span><div className="prof-row-text">{selectedProfile.location || selectedProfile.city}</div></div>
               )}
               {selectedProfile?.email && (
-                <div className="prof-row">
-                  <span className="prof-row-icon">✉️</span>
-                  <div className="prof-row-text">{selectedProfile.email}</div>
-                </div>
+                <div className="prof-row"><span className="prof-row-icon">✉️</span><div className="prof-row-text">{selectedProfile.email}</div></div>
               )}
               {selectedProfile?.platform && (
                 <div className="prof-row">
                   <span className="prof-row-icon">📸</span>
-                  <a
-                    href={selectedProfile.platform}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      color: "var(--primary)", fontSize: 14,
-                      textDecoration: "none", wordBreak: "break-all",
-                    }}
-                  >
+                  <a href={selectedProfile.platform} target="_blank" rel="noopener noreferrer" style={{ color: "var(--primary)", fontSize: 14, textDecoration: "none", wordBreak: "break-all" }}>
                     {selectedProfile.platform}
                   </a>
                 </div>
               )}
-              {!selectedProfile?.bio && !selectedProfile?.location &&
-               !selectedProfile?.city && !selectedProfile?.email &&
-               !selectedProfile?.platform && (
-                <div style={{ fontSize: 13, color: "#aaa", padding: "8px 0" }}>
-                  No additional info available
-                </div>
+              {!selectedProfile?.bio && !selectedProfile?.location && !selectedProfile?.city && !selectedProfile?.email && !selectedProfile?.platform && (
+                <div style={{ fontSize: 13, color: "#aaa", padding: "8px 0" }}>No additional info available</div>
               )}
             </div>
 
-            {/* Niches */}
             {selectedProfile?.categories &&
-              (Array.isArray(selectedProfile.categories)
-                ? selectedProfile.categories
-                : [selectedProfile.categories]
-              ).filter(Boolean).length > 0 && (
+              (Array.isArray(selectedProfile.categories) ? selectedProfile.categories : [selectedProfile.categories]).filter(Boolean).length > 0 && (
               <div className="prof-section">
                 <div className="prof-sec-label">Niches</div>
                 <div className="prof-tag-wrap">
-                  {(Array.isArray(selectedProfile.categories)
-                    ? selectedProfile.categories
-                    : [selectedProfile.categories]
-                  ).filter(Boolean).map((cat: string, i: number) => (
+                  {(Array.isArray(selectedProfile.categories) ? selectedProfile.categories : [selectedProfile.categories])
+                    .filter(Boolean).map((cat: string, i: number) => (
                     <span key={i} className="prof-tag">{cat}</span>
                   ))}
                 </div>
@@ -1136,7 +904,6 @@ function MessagesInner() {
         </div>
       )}
 
-      {/* ── DP FULLSCREEN ── */}
       {showDp && (
         <div className="dp-overlay" onClick={() => setShowDp(false)}>
           {getAvatar(selectedProfile)
@@ -1152,17 +919,8 @@ function MessagesInner() {
 export default function MessagesPage() {
   return (
     <Suspense fallback={
-      <div style={{
-        display: "flex", height: "100dvh",
-        alignItems: "center", justifyContent: "center",
-      }}>
-        <div style={{
-          width: 28, height: 28,
-          border: "3px solid #e0e0e0",
-          borderTopColor: "#4f46e5",
-          borderRadius: "50%",
-          animation: "spin 0.8s linear infinite",
-        }}/>
+      <div style={{ display: "flex", height: "100dvh", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 28, height: 28, border: "3px solid #e0e0e0", borderTopColor: "#4f46e5", borderRadius: "50%", animation: "spin 0.8s linear infinite" }}/>
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       </div>
     }>
