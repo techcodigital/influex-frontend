@@ -910,7 +910,7 @@ const handleUnlockInstagram = async (userId: string) => {
                       <div className="mo-row mo-unlock-row" onClick={() => handleUnlockInstagram(
   typeof modalCreator.user === "string"
     ? modalCreator.user
-    : modalCreator.user?._id
+    : modalCreator.user?._id ?? modalCreator._id
 )}>
                         <span>📸</span>
                         <span className="mo-masked">{maskInstagram(modalCreator.platform)}</span>
