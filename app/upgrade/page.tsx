@@ -95,58 +95,127 @@ export default function UpgradePage() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // ✅ FIX: Mount pe localStorage + API dono se fresh data lo
   useEffect(() => {
-    const stored = localStorage.getItem("cb_user");
-    if (!stored) return;
-    let parsed: any;
-    try { parsed = JSON.parse(stored); } catch { return; }
+  const stored = localStorage.getItem("cb_user");
+  if (!stored) return;
+  let parsed: any;
+  try { parsed = JSON.parse(stored); } catch { return; }
 
-    setUser(parsed);
-    if (parsed.role?.toLowerCase() === "brand") setRole("brand");
-    else setRole("creator");
+  setUser(parsed);
+  if (parsed.role?.toLowerCase() === "brand") setRole("brand");
+  else setRole("creator");
 
-    // ✅ Pehle localStorage se set karo (fast)
-    const rawPlan = parsed.plan || parsed.activePlan || null;
-    if (parsed.isSubscribed === true && rawPlan) {
-      setIsSubscribed(true);
-      setActivePlan(toC(rawPlan));
-    }
+  const token = parsed.token || localStorage.getItem("token") || "";
+  if (!token) return;
 
-    // ✅ FIX: Phir API se fresh data fetch karo — isSubscribed sahi milega
-    const token = parsed.token || localStorage.getItem("token") || "";
-    if (!token) return;
+  // ✅ Pehle localStorage se fast set karo
+  const rawPlan = parsed.plan || parsed.activePlan || null;
+  if (parsed.isSubscribed === true && rawPlan) {
+    setIsSubscribed(true);
+    setActivePlan(toC(rawPlan));
+  }
 
-    fetch(`${API}/profile/me`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(data => {
-        if (!data?.success) return;
+  // ✅ Dusre device fix — activate call karo mount pe
+  // Backend idempotent hai, baar baar call karo koi issue nahi
+  const checkAndSync = async () => {
+    try {
+      const res = await fetch(`${API}/subscription/activate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ plan_id: PLAN_ID, planId: "sync", planName: "sync" }),
+      });
+      const data = await res.json();
 
-        // Backend se fresh subscription status lo
-        const freshUser = data.user || data.profile?.user || null;
-        const freshSub = data.isSubscribed ?? freshUser?.isSubscribed ?? parsed.isSubscribed;
-        const freshPlan = data.plan || data.activePlan || freshUser?.plan || freshUser?.activePlan || rawPlan;
-        const freshBits = data.bits ?? data.profile?.bits ?? freshUser?.bits ?? parsed.bits;
+      if (data.success) {
+        // ✅ Backend se jo bhi fresh data mile
+        const freshPlan = data.plan || data.activePlan || data.user?.plan || rawPlan;
+        const freshBits = data.bits ?? data.user?.bits ?? parsed.bits;
+        const freshSub  = data.isSubscribed ?? data.user?.isSubscribed ?? true;
 
-        // ✅ localStorage update karo with fresh data
         const updated = {
           ...parsed,
-          isSubscribed: freshSub,
-          plan: freshPlan || parsed.plan,
-          activePlan: freshPlan || parsed.activePlan,
-          bits: freshBits ?? parsed.bits,
+          isSubscribed:    freshSub,
+          plan:            freshPlan || parsed.plan,
+          activePlan:      freshPlan || parsed.activePlan,
+          bits:            freshBits ?? parsed.bits,
+          planActivatedAt: data.planActivatedAt || parsed.planActivatedAt,
         };
         localStorage.setItem("cb_user", JSON.stringify(updated));
         setUser(updated);
 
-        if (freshSub === true && freshPlan) {
+        // ✅ Agar plan hai toh active dikhao
+        const planToUse = freshPlan || rawPlan;
+        if (planToUse && planToUse !== "free") {
           setIsSubscribed(true);
-          setActivePlan(toC(freshPlan));
+          setActivePlan(toC(planToUse));
+          // navbar bhi update karo
+          window.dispatchEvent(new CustomEvent("plan_updated"));
         }
-      })
-      .catch(() => {});
-  }, []);
+      }
+    } catch {
+      // Fallback: sirf localStorage se
+      if (parsed.isSubscribed === true && rawPlan) {
+        setIsSubscribed(true);
+        setActivePlan(toC(rawPlan));
+      }
+    }
+  };
 
+  checkAndSync();
+}, []);
+
+  // ✅ FIX: Mount pe localStorage + API dono se fresh data lo
+  // useEffect(() => {
+  //   const stored = localStorage.getItem("cb_user");
+  //   if (!stored) return;
+  //   let parsed: any;
+  //   try { parsed = JSON.parse(stored); } catch { return; }
+
+  //   setUser(parsed);
+  //   if (parsed.role?.toLowerCase() === "brand") setRole("brand");
+  //   else setRole("creator");
+
+  //   // ✅ Pehle localStorage se set karo (fast)
+  //   const rawPlan = parsed.plan || parsed.activePlan || null;
+  //   if (parsed.isSubscribed === true && rawPlan) {
+  //     setIsSubscribed(true);
+  //     setActivePlan(toC(rawPlan));
+  //   }
+
+  //   // ✅ FIX: Phir API se fresh data fetch karo — isSubscribed sahi milega
+  //   const token = parsed.token || localStorage.getItem("token") || "";
+  //   if (!token) return;
+
+  //   fetch(`${API}/profile/me`, { headers: { Authorization: `Bearer ${token}` } })
+  //     .then(r => r.json())
+  //     .then(data => {
+  //       if (!data?.success) return;
+
+  //       // Backend se fresh subscription status lo
+  //       const freshUser = data.user || data.profile?.user || null;
+  //       const freshSub = data.isSubscribed ?? freshUser?.isSubscribed ?? parsed.isSubscribed;
+  //       const freshPlan = data.plan || data.activePlan || freshUser?.plan || freshUser?.activePlan || rawPlan;
+  //       const freshBits = data.bits ?? data.profile?.bits ?? freshUser?.bits ?? parsed.bits;
+
+  //       // ✅ localStorage update karo with fresh data
+  //       const updated = {
+  //         ...parsed,
+  //         isSubscribed: freshSub,
+  //         plan: freshPlan || parsed.plan,
+  //         activePlan: freshPlan || parsed.activePlan,
+  //         bits: freshBits ?? parsed.bits,
+  //       };
+  //       localStorage.setItem("cb_user", JSON.stringify(updated));
+  //       setUser(updated);
+
+  //       if (freshSub === true && freshPlan) {
+  //         setIsSubscribed(true);
+  //         setActivePlan(toC(freshPlan));
+  //       }
+  //     })
+  //     .catch(() => {});
+  // }, []);
+    
   // ✅ Fresh token helper — React closure issue fix
   const getFreshToken = (): string => {
     try {
@@ -464,9 +533,9 @@ export default function UpgradePage() {
               <div className="billing-wrap">
                 <div className="billing-toggle">
                   <button className={`billing-btn ${billing === "monthly" ? "active" : ""}`} onClick={() => setBilling("monthly")}>Monthly</button>
-                  <button className={`billing-btn ${billing === "yearly" ? "active" : ""}`} onClick={() => setBilling("yearly")}>Yearly</button>
+                  {/* <button className={`billing-btn ${billing === "yearly" ? "active" : ""}`} onClick={() => setBilling("yearly")}>Yearly</button> */}
                 </div>
-                {billing === "yearly" && <span className="billing-save">🎉 Save up to 45%</span>}
+                {/* {billing === "yearly" && <span className="billing-save">🎉 Save up to 45%</span>} */}
               </div>
               <div className="plans-grid">
                 {plans.map((plan: any, i: number) => {
