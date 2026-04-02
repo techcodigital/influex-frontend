@@ -205,9 +205,14 @@ export default function PostCampaignPage() {
         const parsed = JSON.parse(stored);
         localStorage.setItem("cb_user", JSON.stringify({ ...parsed, bits: newTokens }));
       }
+       
+      // ✅ Navbar ko live update karo
+      window.dispatchEvent(new CustomEvent("plan_updated"));
 
       showToast("Campaign created successfully! 🚀", "success");
       setTimeout(() => router.push("/campaigns"), 1200);
+      // showToast("Campaign created successfully! 🚀", "success");
+      // setTimeout(() => router.push("/campaigns"), 1200);
     } catch (err: any) {
       showToast(err.message || "Something went wrong.", "error");
     } finally {
