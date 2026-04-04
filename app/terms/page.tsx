@@ -95,7 +95,7 @@ export default function TermsOfService() {
           </div>
 
           <div className="tos-section">
-            <h2><span className="tos-section-num">5</span> Creator Responsibilities</h2>
+            <h2><span className="tos-section-num">5</span>Creator Responsibilities</h2>
             <p>As a Creator (Influencer, Model, or Photographer) on Collabzy, you agree to:</p>
             <ul>
               <li>Provide accurate follower counts and profile information</li>
