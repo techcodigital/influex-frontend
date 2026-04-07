@@ -172,7 +172,7 @@ export default function BrowsePage() {
 
   const pollAcceptedInvites = async () => {
     try {
-      const res  = await fetch(`${API}/notification`, { headers: { Authorization: `Bearer ${token}` } });
+      const res  = await fetch(`${API}/notification?t=${Date.now()}`, { headers: { Authorization: `Bearer ${token}` } });
       const text = await res.text();
       if (text.startsWith("<!") || !res.ok) return;
       const notifs: any[] = JSON.parse(text).data || JSON.parse(text).notifications || [];

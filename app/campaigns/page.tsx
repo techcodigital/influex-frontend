@@ -6,191 +6,122 @@ import { useRouter } from "next/navigation";
 
 const API_BASE = "https://api.collabzy.in/api";
 
-// ─── Module-level cache so navigating back doesn't re-fetch ──────────────────
-const appCountCache: Record<string, number> = {};
-
 export default function CampaignBoard() {
   const router = useRouter();
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [role, setRole]           = useState<string>("");
+  const [toast, setToast]         = useState<{ msg: string; type: "success" | "error" | "warn" } | null>(null);
 
-  const [campaigns, setCampaigns]     = useState<any[]>([]);
-  const [appCounts, setAppCounts]     = useState<Record<string, number>>({});
-  const [loading, setLoading]         = useState(true);
-  const [role, setRole]               = useState<string>("");
-  const [coins, setCoins]             = useState<number | null>(null);
-  const [isSubscribed, setIsSubscribed] = useState(false);
-  const [toast, setToast]             = useState<{ msg: string; type: "success" | "error" | "warn" } | null>(null);
+  // ── Confirm Complete Modal ──
   const [confirmCampaignId, setConfirmCampaignId] = useState<string | null>(null);
-  const [editCampaign, setEditCampaign] = useState<any | null>(null);
-  const [editForm, setEditForm]       = useState<any>({});
-  const [editLoading, setEditLoading] = useState(false);
+  const [completingId, setCompletingId]           = useState<string | null>(null);
 
-  // Prevent double-fetch in StrictMode
-  const hasFetched = useRef(false);
+  // ── Edit Modal ──
+  const [editCampaign, setEditCampaign] = useState<any | null>(null);
+  const [editForm, setEditForm]         = useState<any>({});
+  const [editLoading, setEditLoading]   = useState(false);
+
+  const fetchedRef = useRef(false);
 
   const showToast = (msg: string, type: "success" | "error" | "warn" = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 4000);
   };
 
+  // ── Init ──
   useEffect(() => {
-    if (hasFetched.current) return;
-    hasFetched.current = true;
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+    if (typeof window === "undefined") return;
 
     const raw = localStorage.getItem("cb_user");
     if (!raw) { router.push("/login"); return; }
 
     const parsed = JSON.parse(raw);
-    // Clean up stale coins field
-    if (parsed.coins !== undefined) {
-      delete parsed.coins;
-      localStorage.setItem("cb_user", JSON.stringify(parsed));
-    }
-
     const userRole = parsed?.role?.toLowerCase();
     setRole(userRole);
-    if (userRole !== "brand" && userRole !== "admin") { router.push("/discovery"); return; }
+
+    if (userRole !== "brand" && userRole !== "admin") {
+      router.push("/discovery");
+      return;
+    }
 
     const token = parsed.token || localStorage.getItem("token");
     if (!token) { router.push("/login"); return; }
 
-    setIsSubscribed(parsed.isSubscribed ?? false);
-    fetchCampaigns(token, parsed);
+    fetchCampaigns(token);
   }, []);
 
-  // ─── Fetch campaigns — extract applicationCount from response if available ──
-  const fetchCampaigns = async (token: string, parsedUser?: any) => {
+  // ── FIX 1: No more fetchAllAppCounts — use applicationsCount from campaign object ──
+  const fetchCampaigns = async (token: string) => {
     try {
       setLoading(true);
       const res  = await fetch(`${API_BASE}/campaigns/my`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
 
-      if (!res.ok) {
-        if (res.status === 401) { localStorage.clear(); router.push("/login"); }
-        setCampaigns([]);
-        setCoins((parsedUser || JSON.parse(localStorage.getItem("cb_user") || "{}")).bits ?? 100);
+      if (res.status === 401) {
+        localStorage.clear();
+        router.push("/login");
         return;
       }
 
-      const list: any[] = Array.isArray(data)
-        ? data
-        : Array.isArray(data.campaigns)
-        ? data.campaigns
-        : Array.isArray(data.data)
-        ? data.data
-        : [];
+      if (!res.ok) {
+        setCampaigns([]);
+        return;
+      }
 
+      // FIX 2: Clean response parsing — backend returns { success, data: [] }
+      const data = await res.json();
+      const list: any[] = data?.data ?? [];
       setCampaigns(list);
 
-      // ── Try to extract counts from campaign objects (avoids extra requests) ──
-      // Backend may return applicationCount, applicationsCount, or _count.applications
-      const inlineCountMap: Record<string, number> = {};
-      const needsFetch: any[] = [];
-
-      for (const c of list) {
-        const id = c._id;
-        // 1. Already cached from a previous visit
-        if (appCountCache[id] !== undefined) {
-          inlineCountMap[id] = appCountCache[id];
-          continue;
-        }
-        // 2. Backend returned it inline
-        const inlineCount =
-          c.applicationCount ??
-          c.applicationsCount ??
-          c.applicants ??
-          c._count?.applications ??
-          null;
-
-        if (inlineCount !== null && typeof inlineCount === "number") {
-          inlineCountMap[id] = inlineCount;
-          appCountCache[id]  = inlineCount;
-        } else {
-          needsFetch.push(c);
-        }
-      }
-
-      // Set whatever we have instantly (cached + inline)
-      if (Object.keys(inlineCountMap).length > 0) {
-        setAppCounts(prev => ({ ...prev, ...inlineCountMap }));
-      }
-
-      // Only fetch counts for campaigns we don't already know
-      // Stagger requests to avoid hammering the server all at once
-      if (needsFetch.length > 0) {
-        fetchAppCountsBatched(token, needsFetch);
-      }
-
-      // Handle bits/coins
-      if (typeof data.bits === "number" && !data.isSubscribed) {
-        setCoins(data.bits);
+      // FIX 3: Always sync bits regardless of subscription status
+      if (typeof data.bits === "number") {
         const raw = localStorage.getItem("cb_user");
         if (raw) {
           const p = JSON.parse(raw);
           localStorage.setItem("cb_user", JSON.stringify({ ...p, bits: data.bits }));
         }
-      } else {
-        setCoins((parsedUser || JSON.parse(localStorage.getItem("cb_user") || "{}")).bits ?? 100);
       }
-    } catch {
+    } catch (err) {
+      console.error("fetchCampaigns error:", err);
       setCampaigns([]);
-      setCoins((parsedUser || JSON.parse(localStorage.getItem("cb_user") || "{}")).bits ?? 100);
+      showToast("Failed to load campaigns", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  // ─── Fetch app counts in small batches with delay — not all at once ────────
-  // This prevents 8 simultaneous requests hammering the server
-  const fetchAppCountsBatched = async (token: string, list: any[], batchSize = 3, delayMs = 200) => {
-    for (let i = 0; i < list.length; i += batchSize) {
-      const batch = list.slice(i, i + batchSize);
-      await Promise.allSettled(
-        batch.map(async (c) => {
-          try {
-            const r    = await fetch(`${API_BASE}/campaigns/${c._id}/applications`, {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            const d    = await r.json();
-            const apps = d?.applications || d?.data || [];
-            const count = Array.isArray(apps) ? apps.length : 0;
-            appCountCache[c._id] = count;
-            setAppCounts(prev => ({ ...prev, [c._id]: count }));
-          } catch {
-            appCountCache[c._id] = 0;
-            setAppCounts(prev => ({ ...prev, [c._id]: 0 }));
-          }
-        })
-      );
-      // Small delay between batches — avoids thundering herd
-      if (i + batchSize < list.length) {
-        await new Promise(r => setTimeout(r, delayMs));
-      }
-    }
-  };
-
-  // ─── Complete campaign ────────────────────────────────────────────────────
+  // ── Complete Campaign ──
   const completeCampaign = async (campaignId: string) => {
-    const parsed = JSON.parse(localStorage.getItem("cb_user") || "{}");
-    const token  = parsed.token || localStorage.getItem("token");
+    const token = getToken();
+    if (!token) return;
+    setCompletingId(campaignId);
     try {
       const res = await fetch(`${API_BASE}/campaigns/${campaignId}/complete`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error("Failed");
+      if (!res.ok) throw new Error("Failed to complete campaign");
+
+      // FIX 4: Optimistic UI update — no full refetch needed
+      setCampaigns(prev =>
+        prev.map(c => c._id === campaignId ? { ...c, status: "completed" } : c)
+      );
       showToast("Campaign marked as completed ✓", "success");
       setConfirmCampaignId(null);
-      // Update locally instead of full re-fetch
-      setCampaigns(prev => prev.map(c => c._id === campaignId ? { ...c, status: "completed" } : c));
     } catch (err: any) {
+      console.error(err);
       showToast(err.message || "Something went wrong", "error");
       setConfirmCampaignId(null);
+    } finally {
+      setCompletingId(null);
     }
   };
 
-  // ─── Edit modal ───────────────────────────────────────────────────────────
+  // ── Open Edit Modal ──
   const openEdit = (c: any) => {
     setEditCampaign(c);
     setEditForm({
@@ -198,26 +129,36 @@ export default function CampaignBoard() {
       description: c.description || "",
       budget:      c.budget || "",
       city:        c.city || "",
-      categories:  Array.isArray(c.categories) ? c.categories.join(", ") : c.categories || "",
+      categories:  Array.isArray(c.categories)
+        ? c.categories.join(", ")
+        : c.categories || "",
     });
   };
 
+  // ── Save Edit ──
   const saveEdit = async () => {
     if (!editCampaign) return;
-    const parsed = JSON.parse(localStorage.getItem("cb_user") || "{}");
-    const token  = parsed.token || localStorage.getItem("token");
+    const token = getToken();
+    if (!token) return;
     setEditLoading(true);
     try {
+      // FIX 5: Prevent NaN on empty budget
       const body = {
         title:       editForm.title,
         description: editForm.description,
-        budget:      Number(editForm.budget),
+        budget:      editForm.budget ? Number(editForm.budget) : 0,
         city:        editForm.city,
-        categories:  editForm.categories.split(",").map((s: string) => s.trim()).filter(Boolean),
+        categories:  editForm.categories
+          .split(",")
+          .map((s: string) => s.trim())
+          .filter(Boolean),
       };
       const res = await fetch(`${API_BASE}/campaigns/update/${editCampaign._id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
         body: JSON.stringify(body),
       });
       if (!res.ok) {
@@ -225,16 +166,29 @@ export default function CampaignBoard() {
         throw new Error(err.message || "Update failed");
       }
       showToast("Campaign updated successfully ✓", "success");
-      // Update locally — no full re-fetch needed
-      setCampaigns(prev => prev.map(c => c._id === editCampaign._id ? { ...c, ...body } : c));
       setEditCampaign(null);
+      fetchCampaigns(token);
     } catch (err: any) {
+      console.error(err);
       showToast(err.message || "Something went wrong", "error");
     } finally {
       setEditLoading(false);
     }
   };
 
+  // ── Helper ──
+  const getToken = (): string | null => {
+    const raw = localStorage.getItem("cb_user");
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed.token || localStorage.getItem("token") || null;
+  };
+
+  // ── Derived stats ──
+  const totalApps = campaigns.reduce(
+    (sum, c) => sum + (c.applicationsCount ?? 0), 0
+  );
+
+  // ── Loading ──
   if (loading) return (
     <div style={{ minHeight: "80vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ textAlign: "center" }}>
@@ -258,33 +212,41 @@ export default function CampaignBoard() {
 
         .cb { font-family: 'Plus Jakarta Sans', sans-serif; background: #f7f7f5; min-height: 100vh; }
 
+        /* HEADER */
         .cb-header { background: #fff; border-bottom: 1px solid #efefef; padding: 20px 32px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
         @media(max-width:600px){ .cb-header{ padding: 14px 16px; } }
         .cb-title { font-size: 22px; font-weight: 800; color: #111; margin: 0 0 2px; }
         .cb-sub   { color: #aaa; font-size: 13px; margin: 0; }
         .cb-header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
         .cb-create-btn { padding: 10px 20px; background: linear-gradient(135deg,#4f46e5,#6366f1); color: #fff; border-radius: 12px; font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap; font-family: 'Plus Jakarta Sans', sans-serif; border: none; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 10px rgba(79,70,229,0.3); display: inline-flex; align-items: center; gap: 6px; }
         .cb-create-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(79,70,229,0.4); }
 
+        /* STATS BAR */
         .cb-stats-bar { display: flex; gap: 14px; padding: 16px 32px 0; flex-wrap: wrap; }
         @media(max-width:600px){ .cb-stats-bar{ padding: 12px 16px 0; gap: 10px; } }
         .cb-stat-chip { background: #fff; border: 1.5px solid #efefef; border-radius: 12px; padding: 10px 16px; display: flex; align-items: center; gap: 8px; }
         .cb-stat-chip-val { font-size: 18px; font-weight: 800; color: #111; }
         .cb-stat-chip-lbl { font-size: 12px; color: #aaa; font-weight: 500; }
 
+        /* GRID */
         .cb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 16px; padding: 20px 32px 40px; }
         @media(max-width:768px){ .cb-grid{ grid-template-columns: 1fr; padding: 14px 16px 28px; gap: 12px; } }
 
+        /* CARD */
         .cb-card { background: #fff; border-radius: 18px; border: 1.5px solid #efefef; padding: 22px; transition: all 0.22s; position: relative; overflow: hidden; }
         .cb-card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg,#4f46e5,#7c3aed); opacity: 0; transition: opacity 0.2s; }
         .cb-card:hover { border-color: #d4d0f7; box-shadow: 0 8px 32px rgba(79,70,229,0.08); transform: translateY(-2px); }
         .cb-card:hover::before { opacity: 1; }
+
         .cb-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 6px; }
         .cb-card-title { font-size: 16px; font-weight: 700; color: #111; margin: 0; flex: 1; line-height: 1.4; }
         .cb-badge { padding: 4px 11px; border-radius: 100px; font-size: 11px; font-weight: 700; flex-shrink: 0; letter-spacing: 0.02em; }
         .cb-badge-open      { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
         .cb-badge-completed { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+
         .cb-desc { color: #888; font-size: 13px; line-height: 1.65; margin: 6px 0 16px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 42px; }
+
         .cb-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
         .cb-meta-item { background: #f9f9f8; border-radius: 10px; padding: 10px 12px; border: 1px solid #f0f0f0; }
         .cb-meta-label { font-size: 10px; color: #c0c0c0; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; margin-bottom: 3px; }
@@ -292,24 +254,27 @@ export default function CampaignBoard() {
         .cb-meta-item.apps-highlight { background: linear-gradient(135deg,#eff6ff,#eef2ff); border-color: #c7d2fe; }
         .cb-meta-item.apps-highlight .cb-meta-label { color: #6366f1; }
         .cb-meta-item.apps-highlight .cb-meta-val { color: #4f46e5; font-size: 16px; }
-        .cb-meta-val.loading { animation: pulse 1.2s ease infinite; color: #ccc; }
+
         .cb-actions { display: flex; gap: 8px; flex-wrap: wrap; }
         .cb-btn { flex: 1; min-width: 70px; padding: 9px 12px; border-radius: 10px; font-size: 12px; font-weight: 700; font-family: 'Plus Jakarta Sans', sans-serif; border: none; cursor: pointer; transition: all 0.2s; text-align: center; text-decoration: none; display: flex; align-items: center; justify-content: center; white-space: nowrap; gap: 4px; }
+        .cb-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        .cb-btn-view     { background: #f5f5f3; color: #555; }
         .cb-btn-view:hover     { background: #ebebeb; }
-        .cb-btn-view           { background: #f5f5f3; color: #555; }
-        .cb-btn-apps           { background: #eff6ff; color: #2563eb; }
+        .cb-btn-apps     { background: #eff6ff; color: #2563eb; }
         .cb-btn-apps:hover     { background: #dbeafe; }
-        .cb-btn-edit           { background: #f5f3ff; color: #7c3aed; }
+        .cb-btn-edit     { background: #f5f3ff; color: #7c3aed; }
         .cb-btn-edit:hover     { background: #ede9fe; }
-        .cb-btn-complete       { background: #f0fdf4; color: #15803d; }
-        .cb-btn-complete:hover { background: #dcfce7; }
+        .cb-btn-complete { background: #f0fdf4; color: #15803d; }
+        .cb-btn-complete:hover:not(:disabled) { background: #dcfce7; }
 
+        /* EMPTY */
         .cb-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 70px 24px; text-align: center; margin: 20px 32px; background: #fff; border-radius: 18px; border: 1.5px dashed #e0e0e0; }
         @media(max-width:600px){ .cb-empty{ margin: 14px 12px; padding: 48px 20px; } }
         .cb-empty-icon  { font-size: 48px; margin-bottom: 16px; }
         .cb-empty-title { font-size: 20px; font-weight: 800; color: #111; margin: 0 0 8px; }
         .cb-empty-sub   { color: #aaa; font-size: 14px; margin: 0 0 24px; line-height: 1.6; max-width: 280px; }
 
+        /* MODAL SHARED */
         .cm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; animation: fadeIn 0.2s ease; }
         .cm-box { background: #fff; border-radius: 24px; max-width: 420px; width: 100%; padding: 36px 32px 28px; position: relative; text-align: center; animation: slideUp 0.25s ease; }
         .cm-close { position: absolute; top: 14px; right: 16px; background: #f5f5f3; border: none; font-size: 16px; cursor: pointer; color: #888; padding: 6px; border-radius: 8px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; }
@@ -317,12 +282,16 @@ export default function CampaignBoard() {
         .cm-icon  { font-size: 52px; margin-bottom: 14px; line-height: 1; }
         .cm-title { font-size: 22px; font-weight: 800; color: #111; margin-bottom: 8px; }
         .cm-sub   { font-size: 14px; color: #777; line-height: 1.65; margin-bottom: 24px; }
+
+        /* CONFIRM MODAL BUTTONS */
         .cm-confirm-actions { display: flex; gap: 10px; }
         .cm-btn-cancel  { flex: 1; padding: 13px; border-radius: 12px; font-size: 14px; font-weight: 700; font-family: 'Plus Jakarta Sans', sans-serif; border: 1.5px solid #e5e5e5; background: #fff; color: #555; cursor: pointer; transition: all 0.2s; }
         .cm-btn-cancel:hover  { background: #f5f5f3; }
         .cm-btn-confirm { flex: 1; padding: 13px; border-radius: 12px; font-size: 14px; font-weight: 700; font-family: 'Plus Jakarta Sans', sans-serif; border: none; background: linear-gradient(135deg,#22c55e,#16a34a); color: #fff; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 10px rgba(22,163,74,0.25); }
-        .cm-btn-confirm:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(22,163,74,0.35); }
+        .cm-btn-confirm:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(22,163,74,0.35); }
+        .cm-btn-confirm:disabled { opacity: 0.6; cursor: not-allowed; }
 
+        /* EDIT MODAL */
         .cm-box-edit { background: #fff; border-radius: 24px; max-width: 480px; width: 100%; padding: 32px; position: relative; animation: slideUp 0.25s ease; max-height: 90vh; overflow-y: auto; text-align: left; }
         .cm-edit-title { font-size: 20px; font-weight: 800; color: #111; margin-bottom: 20px; }
         .cm-field { margin-bottom: 14px; }
@@ -336,6 +305,7 @@ export default function CampaignBoard() {
         .cm-btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
         .cm-mini-spin { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; margin-right: 6px; vertical-align: middle; }
 
+        /* TOAST */
         .cb-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 12px 22px; border-radius: 12px; font-size: 13px; font-weight: 600; font-family: 'Plus Jakarta Sans', sans-serif; z-index: 99999; white-space: nowrap; max-width: 90vw; text-align: center; animation: toastIn 0.3s ease; box-shadow: 0 4px 20px rgba(0,0,0,0.12); }
         .cb-toast.success { background: #111; color: #fff; }
         .cb-toast.error   { background: #ef4444; color: #fff; }
@@ -352,11 +322,17 @@ export default function CampaignBoard() {
             <div className="cm-icon">✅</div>
             <div className="cm-title">Are you sure?</div>
             <div className="cm-sub">
-              Are you sure you want to mark this campaign as <strong>completed</strong>? This action cannot be undone.
+              Marking this campaign as <strong>completed</strong> cannot be undone.
             </div>
             <div className="cm-confirm-actions">
               <button className="cm-btn-cancel" onClick={() => setConfirmCampaignId(null)}>Cancel</button>
-              <button className="cm-btn-confirm" onClick={() => completeCampaign(confirmCampaignId)}>Yes, Complete It</button>
+              <button
+                className="cm-btn-confirm"
+                disabled={!!completingId}
+                onClick={() => completeCampaign(confirmCampaignId)}
+              >
+                {completingId ? <><span className="cm-mini-spin" />Completing...</> : "Yes, Complete It"}
+              </button>
             </div>
           </div>
         </div>
@@ -378,7 +354,7 @@ export default function CampaignBoard() {
             </div>
             <div className="cm-field">
               <label>Budget (₹)</label>
-              <input type="number" value={editForm.budget} onChange={e => setEditForm({ ...editForm, budget: e.target.value })} placeholder="Budget amount" />
+              <input type="number" min="0" value={editForm.budget} onChange={e => setEditForm({ ...editForm, budget: e.target.value })} placeholder="Budget amount" />
             </div>
             <div className="cm-field">
               <label>City</label>
@@ -399,6 +375,7 @@ export default function CampaignBoard() {
       )}
 
       <div className="cb">
+        {/* HEADER */}
         <div className="cb-header">
           <div>
             <h1 className="cb-title">My Campaigns</h1>
@@ -409,6 +386,7 @@ export default function CampaignBoard() {
           </div>
         </div>
 
+        {/* STATS BAR */}
         {campaigns.length > 0 && (
           <div className="cb-stats-bar">
             <div className="cb-stat-chip">
@@ -426,18 +404,15 @@ export default function CampaignBoard() {
             <div className="cb-stat-chip">
               <span style={{ fontSize: 18 }}>👥</span>
               <div>
-                <div className="cb-stat-chip-val">
-                  {Object.keys(appCounts).length < campaigns.length
-                    ? <span style={{ fontSize: 13, color: "#ccc", animation: "pulse 1.2s ease infinite" }}>...</span>
-                    : Object.values(appCounts).reduce((a, b) => a + b, 0)
-                  }
-                </div>
+                {/* FIX 1: applicationsCount directly from campaign object — zero extra API calls */}
+                <div className="cb-stat-chip-val">{totalApps}</div>
                 <div className="cb-stat-chip-lbl">Total Apps</div>
               </div>
             </div>
           </div>
         )}
 
+        {/* CAMPAIGNS */}
         {campaigns.length === 0 ? (
           <div className="cb-empty">
             <div className="cb-empty-icon">📋</div>
@@ -447,50 +422,51 @@ export default function CampaignBoard() {
           </div>
         ) : (
           <div className="cb-grid">
-            {campaigns.map((c) => {
-              const count        = appCounts[c._id];
-              const countLoading = count === undefined;
-              return (
-                <div key={c._id} className="cb-card">
-                  <div className="cb-card-top">
-                    <h3 className="cb-card-title">{c.title || "Untitled"}</h3>
-                    <span className={`cb-badge ${c.status === "completed" ? "cb-badge-completed" : "cb-badge-open"}`}>
-                      {c.status === "completed" ? "Completed" : "Open"}
-                    </span>
+            {campaigns.map((c) => (
+              <div key={c._id} className="cb-card">
+                <div className="cb-card-top">
+                  <h3 className="cb-card-title">{c.title || "Untitled"}</h3>
+                  <span className={`cb-badge ${c.status === "completed" ? "cb-badge-completed" : "cb-badge-open"}`}>
+                    {c.status === "completed" ? "Completed" : "Open"}
+                  </span>
+                </div>
+                {c.description && <p className="cb-desc">{c.description}</p>}
+                <div className="cb-meta">
+                  <div className="cb-meta-item">
+                    <div className="cb-meta-label">Budget</div>
+                    <div className="cb-meta-val">₹{(c.budget || 0).toLocaleString()}</div>
                   </div>
-                  {c.description && <p className="cb-desc">{c.description}</p>}
-                  <div className="cb-meta">
-                    <div className="cb-meta-item">
-                      <div className="cb-meta-label">Budget</div>
-                      <div className="cb-meta-val">₹{(c.budget || 0).toLocaleString()}</div>
-                    </div>
-                    <div className="cb-meta-item">
-                      <div className="cb-meta-label">City</div>
-                      <div className="cb-meta-val">{c.city || "—"}</div>
-                    </div>
-                    <div className="cb-meta-item">
-                      <div className="cb-meta-label">Category</div>
-                      <div className="cb-meta-val" style={{ fontSize: "12px" }}>
-                        {Array.isArray(c.categories) ? c.categories.join(", ") : c.categories || "—"}
-                      </div>
-                    </div>
-                    <div className="cb-meta-item apps-highlight">
-                      <div className="cb-meta-label">Applications</div>
-                      <div className={`cb-meta-val ${countLoading ? "loading" : ""}`}>
-                        {countLoading ? "..." : count}
-                      </div>
+                  <div className="cb-meta-item">
+                    <div className="cb-meta-label">City</div>
+                    <div className="cb-meta-val">{c.city || "—"}</div>
+                  </div>
+                  <div className="cb-meta-item">
+                    <div className="cb-meta-label">Category</div>
+                    <div className="cb-meta-val" style={{ fontSize: "12px" }}>
+                      {Array.isArray(c.categories) ? c.categories.join(", ") : c.categories || "—"}
                     </div>
                   </div>
-                  <div className="cb-actions">
-                    <Link href={`/campaigns/${c._id}`} className="cb-btn cb-btn-view">View</Link>
-                    <button className="cb-btn cb-btn-edit" onClick={() => openEdit(c)}>Edit</button>
-                    {c.status !== "completed" && (
-                      <button className="cb-btn cb-btn-complete" onClick={() => setConfirmCampaignId(c._id)}>✓ Complete</button>
-                    )}
+                  <div className="cb-meta-item apps-highlight">
+                    <div className="cb-meta-label">Applications</div>
+                    {/* FIX 1: use applicationsCount from campaign — no extra fetch */}
+                    <div className="cb-meta-val">{c.applicationsCount ?? 0}</div>
                   </div>
                 </div>
-              );
-            })}
+                <div className="cb-actions">
+                  <Link href={`/campaigns/${c._id}`} className="cb-btn cb-btn-view">View</Link>
+                  <button className="cb-btn cb-btn-edit" onClick={() => openEdit(c)}>Edit</button>
+                  {c.status !== "completed" && (
+                    <button
+                      className="cb-btn cb-btn-complete"
+                      disabled={completingId === c._id}
+                      onClick={() => setConfirmCampaignId(c._id)}
+                    >
+                      {completingId === c._id ? "..." : "✓ Complete"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -501,7 +477,7 @@ export default function CampaignBoard() {
 
 // "use client";
 
-// import { useState, useEffect } from "react";
+// import { useState, useEffect , useRef } from "react";
 // import Link from "next/link";
 // import { useRouter } from "next/navigation";
 
@@ -510,6 +486,7 @@ export default function CampaignBoard() {
 // export default function CampaignBoard() {
 //   const router = useRouter();
 //   const [campaigns, setCampaigns]               = useState<any[]>([]);
+//   const appCountsRef = useRef<Record<string, number>>({});
 //   const [appCounts, setAppCounts]               = useState<Record<string, number>>({});
 //   const [loading, setLoading]                   = useState(true);
 //   const [role, setRole]                         = useState<string>("");
@@ -530,23 +507,60 @@ export default function CampaignBoard() {
 //     setTimeout(() => setToast(null), 4000);
 //   };
 
-//   useEffect(() => {
-//     if (typeof window === "undefined") return;
-//     const raw = localStorage.getItem("cb_user");
-//     if (!raw) { router.push("/login"); return; }
-//     const parsed = JSON.parse(raw);
-//     if (parsed.coins !== undefined) {
-//       delete parsed.coins;
-//       localStorage.setItem("cb_user", JSON.stringify(parsed));
-//     }
-//     const userRole = parsed?.role?.toLowerCase();
-//     setRole(userRole);
-//     if (userRole !== "brand" && userRole !== "admin") { router.push("/discovery"); return; }
-//     const token = parsed.token || localStorage.getItem("token");
-//     if (!token) { router.push("/login"); return; }
-//     setIsSubscribed(parsed.isSubscribed ?? false);
-//     fetchCampaigns(token, parsed);
-//   }, []);
+//   // useEffect(() => {
+//   //   if (typeof window === "undefined") return;
+//   //   const raw = localStorage.getItem("cb_user");
+//   //   if (!raw) { router.push("/login"); return; }
+//   //   const parsed = JSON.parse(raw);
+//   //   if (parsed.coins !== undefined) {
+//   //     delete parsed.coins;
+//   //     localStorage.setItem("cb_user", JSON.stringify(parsed));
+//   //   }
+//   //   const userRole = parsed?.role?.toLowerCase();
+//   //   setRole(userRole);
+//   //   if (userRole !== "brand" && userRole !== "admin") { router.push("/discovery"); return; }
+//   //   const token = parsed.token || localStorage.getItem("token");
+//   //   if (!token) { router.push("/login"); return; }
+//   //   setIsSubscribed(parsed.isSubscribed ?? false);
+//   //   fetchCampaigns(token, parsed);
+//   // }, []);
+
+ 
+// const fetchedRef = useRef(false);
+
+// // ✅ reset counts once on mount
+// useEffect(() => {
+//   setAppCounts({});
+// }, []);
+
+
+// useEffect(() => {
+//   if (fetchedRef.current) return;   // ✅ STOP duplicate call
+//   fetchedRef.current = true;
+
+//   if (typeof window === "undefined") return;
+
+//   const raw = localStorage.getItem("cb_user");
+//   if (!raw) { router.push("/login"); return; }
+
+//   const parsed = JSON.parse(raw);
+//   const userRole = parsed?.role?.toLowerCase();
+
+//   setRole(userRole);
+
+//   if (userRole !== "brand" && userRole !== "admin") {
+//     router.push("/discovery");
+//     return;
+//   }
+
+//   const token = parsed.token || localStorage.getItem("token");
+//   if (!token) { router.push("/login"); return; }
+
+//   setIsSubscribed(parsed.isSubscribed ?? false);
+
+//   fetchCampaigns(token, parsed);
+
+// }, []);
 
 //   const fetchCampaigns = async (token: string, parsedUser?: any) => {
 //     try {
@@ -559,9 +573,11 @@ export default function CampaignBoard() {
 //         setCoins((parsedUser || JSON.parse(localStorage.getItem("cb_user") || "{}")).bits ?? 100);
 //         return;
 //       }
-//       const list = Array.isArray(data) ? data : Array.isArray(data.campaigns) ? data.campaigns : Array.isArray(data.data) ? data.data : [];
+//       const list = data?.data || [] ? data : Array.isArray(data.campaigns) ? data.campaigns : Array.isArray(data.data) ? data.data : [];
 //       setCampaigns(list);
-//       fetchAllAppCounts(token, list);
+//      setTimeout(() => {
+//   fetchAllAppCounts(token, list);
+// }, 0);
 //       if (typeof data.bits === "number" && !data.isSubscribed) {
 //         setCoins(data.bits);
 //         const raw = localStorage.getItem("cb_user");
@@ -580,26 +596,62 @@ export default function CampaignBoard() {
 //     }
 //   };
 
-//   const fetchAllAppCounts = async (token: string, list: any[]) => {
-//     const results = await Promise.allSettled(
-//       list.map(async (c) => {
-//         try {
-//           const r = await fetch(`${API_BASE}/campaigns/${c._id}/applications`, { headers: { Authorization: `Bearer ${token}` } });
-//           const d = await r.json();
-//           const apps = d?.applications || d?.data || [];
-//           return { id: c._id, count: Array.isArray(apps) ? apps.length : 0 };
-//         } catch {
-//           return { id: c._id, count: 0 };
-//         }
-//       })
-//     );
-//     const counts: Record<string, number> = {};
-//     results.forEach((r) => {
-//       if (r.status === "fulfilled") counts[r.value.id] = r.value.count;
-//     });
-//     setAppCounts(counts);
-//   };
+//   // const fetchAllAppCounts = async (token: string, list: any[]) => {
+//   //   const results = await Promise.allSettled(
+//   //     list.map(async (c) => {
+//   //       try {
+//   //         const r = await fetch(`${API_BASE}/campaigns/${c._id}/applications`, { headers: { Authorization: `Bearer ${token}` } });
+//   //         const d = await r.json();
+//   //         const apps = d?.applications || d?.data || [];
+//   //         return { id: c._id, count: Array.isArray(apps) ? apps.length : 0 };
+//   //       } catch {
+//   //         return { id: c._id, count: 0 };
+//   //       }
+//   //     })
+//   //   );
+//   //   const counts: Record<string, number> = {};
+//   //   results.forEach((r) => {
+//   //     if (r.status === "fulfilled") counts[r.value.id] = r.value.count;
+//   //   });
+//   //   setAppCounts(counts);
+//   // };
+     
+// const fetchAllAppCounts = async (token: string, list: any[]) => {
+//   const newCampaigns = list.filter(
+//     c => appCountsRef.current[c._id] === undefined
+//   );
 
+//   if (newCampaigns.length === 0) return;
+
+//   const results = await Promise.allSettled(
+//     newCampaigns.map(async (c) => {
+//       try {
+//         const r = await fetch(`${API_BASE}/campaigns/${c._id}/applications`, {
+//           headers: { Authorization: `Bearer ${token}` }
+//         });
+//         const d = await r.json();
+//         const apps = d?.applications || d?.data || [];
+//         return { id: c._id, count: apps.length };
+//       } catch {
+//         return { id: c._id, count: 0 };
+//       }
+//     })
+//   );
+
+//   const counts: Record<string, number> = {};
+
+//   results.forEach((r) => {
+//     if (r.status === "fulfilled") {
+//       counts[r.value.id] = r.value.count;
+//     }
+//   });
+
+//   setAppCounts(prev => {
+//     const updated = { ...prev, ...counts };
+//     appCountsRef.current = updated; // 🔥 IMPORTANT
+//     return updated;
+//   });
+// };
 //   // ── Complete Campaign (after confirm) ──
 //   const completeCampaign = async (campaignId: string) => {
 //     const parsed = JSON.parse(localStorage.getItem("cb_user") || "{}");

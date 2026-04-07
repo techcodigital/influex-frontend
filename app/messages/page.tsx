@@ -129,65 +129,73 @@ function MessagesInner() {
   /* ════════════════════════════════════════════
      SOCKET.IO  — FIX 1 & 2 applied here
   ════════════════════════════════════════════ */
+  // keep refs updated
   useEffect(() => {
-    if (!token || !myId || socketRef.current) return;
+    myIdRef.current = myId;
+  }, [myId]);
+
+  // ✅ MAIN SOCKET EFFECT (FIXED)
+  useEffect(() => {
+    if (!token || !myId) return;
+
+    // 🔥 IMPORTANT: prevent multiple instances
+    if (socketRef.current?.connected) return;
 
     const socket = io(SOCKET_URL, {
       transports: ["websocket"],
       auth: { token },
-      reconnection: true,
     });
 
     socketRef.current = socket;
 
+    // ================= CONNECT =================
     socket.on("connect", () => {
       console.log("🟢 Connected:", socket.id);
       setSocketConnected(true);
+
       socket.emit("join", myIdRef.current);
 
-      // FIX 2: re-join active room on every (re)connect
+      // rejoin active conversation
       if (activeConvRef.current) {
-        socket.emit("joinConversation", activeConvRef.current._id.toString());
-        socket.emit("join_room",        activeConvRef.current._id.toString());
-        socket.emit("joinRoom",         activeConvRef.current._id.toString());
+        const id = activeConvRef.current._id.toString();
+        socket.emit("joinConversation", id);
       }
     });
 
-    socket.on("connect_error", (err) => {
-      console.error("🔴 Socket Error:", err.message);
-    });
-
+    // ================= DISCONNECT =================
     socket.on("disconnect", (reason) => {
       console.warn("🟡 Disconnected:", reason);
       setSocketConnected(false);
     });
 
-    socket.on("reconnect", () => {
-      console.log("🔄 Reconnected");
-      socket.emit("join", myIdRef.current);
-      if (activeConvRef.current) {
-        socket.emit("joinConversation", activeConvRef.current._id.toString());
-        socket.emit("join_room",        activeConvRef.current._id.toString());
-        socket.emit("joinRoom",         activeConvRef.current._id.toString());
-      }
+    // ================= ERROR =================
+    socket.on("connect_error", (err) => {
+      console.error("🔴 Socket Error:", err.message);
     });
 
-    // FIX 1: receive_message — single source of truth for adding real messages
+    // ================= RECEIVE MESSAGE =================
     socket.on("receive_message", (data: any) => {
       console.log("🔥 New Message:", data);
 
-      const msg       = data?.message || data;
-      const conv      = activeConvRef.current;
-      const msgConvId = (data?.chat_id || msg.conversationId || msg.chat_id)?.toString();
-      const senderId  = (msg.sender?._id || msg.sender)?.toString();
-      const isMe      = senderId === myIdRef.current;
+      const msg = data?.message || data;
+      const conv = activeConvRef.current;
 
+      const msgConvId = (
+        data?.chat_id ||
+        msg.conversationId ||
+        msg.chat_id
+      )?.toString();
+
+      const senderId = (msg.sender?._id || msg.sender)?.toString();
+      const isMe = senderId === myIdRef.current;
+
+      // ===== ACTIVE CHAT =====
       if (conv && msgConvId === conv._id?.toString()) {
-        setMessagesSync(prev => {
-          // Already have the real message (exact _id match)
-          if (msg._id && prev.some(m => m._id === msg._id)) return prev;
+        setMessagesSync((prev) => {
+          // duplicate check
+          if (msg._id && prev.some((m) => m._id === msg._id)) return prev;
 
-          // If sent by me → replace the latest temp (optimistic) message
+          // replace temp msg
           if (isMe) {
             const tempIdx = [...prev]
               .map((m, i) => ({ m, i }))
@@ -201,61 +209,220 @@ function MessagesInner() {
             }
           }
 
-          // Otherwise just append (incoming from other user)
           return [...prev, { ...msg, _temp: false }];
         });
 
-        // Update sidebar preview
-        setConversations(prev => prev.map(c =>
-          c._id?.toString() === msgConvId
-            ? { ...c, lastMessage: msg.text, lastMessageAt: msg.createdAt }
-            : c
-        ));
-      } else if (!isMe && msgConvId) {
-        // Increment unread for a different conversation
-        updateUnreadCounts(prev => ({
+        // update sidebar
+        setConversations((prev) =>
+          prev.map((c) =>
+            c._id?.toString() === msgConvId
+              ? {
+                  ...c,
+                  lastMessage: msg.text,
+                  lastMessageAt: msg.createdAt,
+                }
+              : c
+          )
+        );
+      }
+
+      // ===== OTHER CHAT =====
+      else if (!isMe && msgConvId) {
+        updateUnreadCounts((prev) => ({
           ...prev,
           [msgConvId]: (prev[msgConvId] || 0) + 1,
         }));
-        setConversations(prev => {
-          const idx = prev.findIndex(c => c._id?.toString() === msgConvId);
+
+        setConversations((prev) => {
+          const idx = prev.findIndex(
+            (c) => c._id?.toString() === msgConvId
+          );
           if (idx === -1) return prev;
+
           const arr = [...prev];
           const [moved] = arr.splice(idx, 1);
-          return [{ ...moved, lastMessage: msg.text, lastMessageAt: msg.createdAt }, ...arr];
+
+          return [
+            {
+              ...moved,
+              lastMessage: msg.text,
+              lastMessageAt: msg.createdAt,
+            },
+            ...arr,
+          ];
         });
       }
     });
 
-    // messageSent event (some backends emit this too)
+    // ================= MESSAGE SENT =================
     socket.on("messageSent", (msg: any) => {
-      setMessagesSync(prev => {
-        if (msg._id && prev.some(m => m._id === msg._id)) return prev;
+      setMessagesSync((prev) => {
+        if (msg._id && prev.some((m) => m._id === msg._id)) return prev;
+
         const tempIdx = [...prev]
           .map((m, i) => ({ m, i }))
           .reverse()
           .find(({ m }) => m._temp)?.i;
+
         if (tempIdx !== undefined) {
           const upd = [...prev];
           upd[tempIdx] = { ...msg, _temp: false };
           return upd;
         }
+
         return [...prev, { ...msg, _temp: false }];
       });
     });
 
-    // Full history emitted by some backends on joinConversation
+    // ================= FULL HISTORY =================
     socket.on("conversationMessages", (data: any) => {
-      const msgs: any[] = data?.messages || data || [];
+      const msgs = data?.messages || data || [];
       if (msgs.length > 0) setMessagesSync(msgs);
     });
 
+    // ❌ IMPORTANT: cleanup me disconnect NAHI karna
     return () => {
-      socket.disconnect();
-      socketRef.current = null;
-      setSocketConnected(false);
+      // only remove listeners
+      socket.off();
     };
   }, [token, myId]);
+
+  // ================= MANUAL DISCONNECT (optional) =================
+  const disconnectSocket = () => {
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+      setSocketConnected(false);
+    }
+  };
+
+  // useEffect(() => {
+  //   if (!token || !myId || socketRef.current) return;
+
+  //   const socket = io(SOCKET_URL, {
+  //     transports: ["websocket"],
+  //     auth: { token },
+  //     reconnection: true,
+  //   });
+
+  //   socketRef.current = socket;
+
+  //   socket.on("connect", () => {
+  //     console.log("🟢 Connected:", socket.id);
+  //     setSocketConnected(true);
+  //     socket.emit("join", myIdRef.current);
+
+  //     // FIX 2: re-join active room on every (re)connect
+  //     if (activeConvRef.current) {
+  //       socket.emit("joinConversation", activeConvRef.current._id.toString());
+  //       socket.emit("join_room",        activeConvRef.current._id.toString());
+  //       socket.emit("joinRoom",         activeConvRef.current._id.toString());
+  //     }
+  //   });
+
+  //   socket.on("connect_error", (err) => {
+  //     console.error("🔴 Socket Error:", err.message);
+  //   });
+
+  //   socket.on("disconnect", (reason) => {
+  //     console.warn("🟡 Disconnected:", reason);
+  //     setSocketConnected(false);
+  //   });
+
+  //   socket.on("reconnect", () => {
+  //     console.log("🔄 Reconnected");
+  //     socket.emit("join", myIdRef.current);
+  //     if (activeConvRef.current) {
+  //       socket.emit("joinConversation", activeConvRef.current._id.toString());
+  //       socket.emit("join_room",        activeConvRef.current._id.toString());
+  //       socket.emit("joinRoom",         activeConvRef.current._id.toString());
+  //     }
+  //   });
+
+  //   // FIX 1: receive_message — single source of truth for adding real messages
+  //   socket.on("receive_message", (data: any) => {
+  //     console.log("🔥 New Message:", data);
+
+  //     const msg       = data?.message || data;
+  //     const conv      = activeConvRef.current;
+  //     const msgConvId = (data?.chat_id || msg.conversationId || msg.chat_id)?.toString();
+  //     const senderId  = (msg.sender?._id || msg.sender)?.toString();
+  //     const isMe      = senderId === myIdRef.current;
+
+  //     if (conv && msgConvId === conv._id?.toString()) {
+  //       setMessagesSync(prev => {
+  //         // Already have the real message (exact _id match)
+  //         if (msg._id && prev.some(m => m._id === msg._id)) return prev;
+
+  //         // If sent by me → replace the latest temp (optimistic) message
+  //         if (isMe) {
+  //           const tempIdx = [...prev]
+  //             .map((m, i) => ({ m, i }))
+  //             .reverse()
+  //             .find(({ m }) => m._temp)?.i;
+
+  //           if (tempIdx !== undefined) {
+  //             const upd = [...prev];
+  //             upd[tempIdx] = { ...msg, _temp: false };
+  //             return upd;
+  //           }
+  //         }
+
+  //         // Otherwise just append (incoming from other user)
+  //         return [...prev, { ...msg, _temp: false }];
+  //       });
+
+  //       // Update sidebar preview
+  //       setConversations(prev => prev.map(c =>
+  //         c._id?.toString() === msgConvId
+  //           ? { ...c, lastMessage: msg.text, lastMessageAt: msg.createdAt }
+  //           : c
+  //       ));
+  //     } else if (!isMe && msgConvId) {
+  //       // Increment unread for a different conversation
+  //       updateUnreadCounts(prev => ({
+  //         ...prev,
+  //         [msgConvId]: (prev[msgConvId] || 0) + 1,
+  //       }));
+  //       setConversations(prev => {
+  //         const idx = prev.findIndex(c => c._id?.toString() === msgConvId);
+  //         if (idx === -1) return prev;
+  //         const arr = [...prev];
+  //         const [moved] = arr.splice(idx, 1);
+  //         return [{ ...moved, lastMessage: msg.text, lastMessageAt: msg.createdAt }, ...arr];
+  //       });
+  //     }
+  //   });
+
+  //   // messageSent event (some backends emit this too)
+  //   socket.on("messageSent", (msg: any) => {
+  //     setMessagesSync(prev => {
+  //       if (msg._id && prev.some(m => m._id === msg._id)) return prev;
+  //       const tempIdx = [...prev]
+  //         .map((m, i) => ({ m, i }))
+  //         .reverse()
+  //         .find(({ m }) => m._temp)?.i;
+  //       if (tempIdx !== undefined) {
+  //         const upd = [...prev];
+  //         upd[tempIdx] = { ...msg, _temp: false };
+  //         return upd;
+  //       }
+  //       return [...prev, { ...msg, _temp: false }];
+  //     });
+  //   });
+
+  //   // Full history emitted by some backends on joinConversation
+  //   socket.on("conversationMessages", (data: any) => {
+  //     const msgs: any[] = data?.messages || data || [];
+  //     if (msgs.length > 0) setMessagesSync(msgs);
+  //   });
+
+  //   return () => {
+  //     socket.disconnect();
+  //     socketRef.current = null;
+  //     setSocketConnected(false);
+  //   };
+  // }, [token, myId]);
 
   /* ── Join conversation room + load messages via HTTP ── */
   useEffect(() => {
