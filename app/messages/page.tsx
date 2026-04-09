@@ -296,133 +296,7 @@ function MessagesInner() {
     }
   };
 
-  // useEffect(() => {
-  //   if (!token || !myId || socketRef.current) return;
-
-  //   const socket = io(SOCKET_URL, {
-  //     transports: ["websocket"],
-  //     auth: { token },
-  //     reconnection: true,
-  //   });
-
-  //   socketRef.current = socket;
-
-  //   socket.on("connect", () => {
-  //     console.log("🟢 Connected:", socket.id);
-  //     setSocketConnected(true);
-  //     socket.emit("join", myIdRef.current);
-
-  //     // FIX 2: re-join active room on every (re)connect
-  //     if (activeConvRef.current) {
-  //       socket.emit("joinConversation", activeConvRef.current._id.toString());
-  //       socket.emit("join_room",        activeConvRef.current._id.toString());
-  //       socket.emit("joinRoom",         activeConvRef.current._id.toString());
-  //     }
-  //   });
-
-  //   socket.on("connect_error", (err) => {
-  //     console.error("🔴 Socket Error:", err.message);
-  //   });
-
-  //   socket.on("disconnect", (reason) => {
-  //     console.warn("🟡 Disconnected:", reason);
-  //     setSocketConnected(false);
-  //   });
-
-  //   socket.on("reconnect", () => {
-  //     console.log("🔄 Reconnected");
-  //     socket.emit("join", myIdRef.current);
-  //     if (activeConvRef.current) {
-  //       socket.emit("joinConversation", activeConvRef.current._id.toString());
-  //       socket.emit("join_room",        activeConvRef.current._id.toString());
-  //       socket.emit("joinRoom",         activeConvRef.current._id.toString());
-  //     }
-  //   });
-
-  //   // FIX 1: receive_message — single source of truth for adding real messages
-  //   socket.on("receive_message", (data: any) => {
-  //     console.log("🔥 New Message:", data);
-
-  //     const msg       = data?.message || data;
-  //     const conv      = activeConvRef.current;
-  //     const msgConvId = (data?.chat_id || msg.conversationId || msg.chat_id)?.toString();
-  //     const senderId  = (msg.sender?._id || msg.sender)?.toString();
-  //     const isMe      = senderId === myIdRef.current;
-
-  //     if (conv && msgConvId === conv._id?.toString()) {
-  //       setMessagesSync(prev => {
-  //         // Already have the real message (exact _id match)
-  //         if (msg._id && prev.some(m => m._id === msg._id)) return prev;
-
-  //         // If sent by me → replace the latest temp (optimistic) message
-  //         if (isMe) {
-  //           const tempIdx = [...prev]
-  //             .map((m, i) => ({ m, i }))
-  //             .reverse()
-  //             .find(({ m }) => m._temp)?.i;
-
-  //           if (tempIdx !== undefined) {
-  //             const upd = [...prev];
-  //             upd[tempIdx] = { ...msg, _temp: false };
-  //             return upd;
-  //           }
-  //         }
-
-  //         // Otherwise just append (incoming from other user)
-  //         return [...prev, { ...msg, _temp: false }];
-  //       });
-
-  //       // Update sidebar preview
-  //       setConversations(prev => prev.map(c =>
-  //         c._id?.toString() === msgConvId
-  //           ? { ...c, lastMessage: msg.text, lastMessageAt: msg.createdAt }
-  //           : c
-  //       ));
-  //     } else if (!isMe && msgConvId) {
-  //       // Increment unread for a different conversation
-  //       updateUnreadCounts(prev => ({
-  //         ...prev,
-  //         [msgConvId]: (prev[msgConvId] || 0) + 1,
-  //       }));
-  //       setConversations(prev => {
-  //         const idx = prev.findIndex(c => c._id?.toString() === msgConvId);
-  //         if (idx === -1) return prev;
-  //         const arr = [...prev];
-  //         const [moved] = arr.splice(idx, 1);
-  //         return [{ ...moved, lastMessage: msg.text, lastMessageAt: msg.createdAt }, ...arr];
-  //       });
-  //     }
-  //   });
-
-  //   // messageSent event (some backends emit this too)
-  //   socket.on("messageSent", (msg: any) => {
-  //     setMessagesSync(prev => {
-  //       if (msg._id && prev.some(m => m._id === msg._id)) return prev;
-  //       const tempIdx = [...prev]
-  //         .map((m, i) => ({ m, i }))
-  //         .reverse()
-  //         .find(({ m }) => m._temp)?.i;
-  //       if (tempIdx !== undefined) {
-  //         const upd = [...prev];
-  //         upd[tempIdx] = { ...msg, _temp: false };
-  //         return upd;
-  //       }
-  //       return [...prev, { ...msg, _temp: false }];
-  //     });
-  //   });
-
-  //   // Full history emitted by some backends on joinConversation
-  //   socket.on("conversationMessages", (data: any) => {
-  //     const msgs: any[] = data?.messages || data || [];
-  //     if (msgs.length > 0) setMessagesSync(msgs);
-  //   });
-
-  //   return () => {
-  //     socket.disconnect();
-  //     socketRef.current = null;
-  //     setSocketConnected(false);
-  //   };
-  // }, [token, myId]);
+ 
 
   /* ── Join conversation room + load messages via HTTP ── */
   useEffect(() => {
@@ -458,8 +332,9 @@ function MessagesInner() {
 
   /* ── LOAD ALL CHATS ── */
   useEffect(() => {
-    if (!token || fetchedConvs.current) return;
+    if (!token || !myId  || fetchedConvs.current) return;
     fetchedConvs.current = true;
+       myIdRef.current = myId;
     setLoadingConvs(true);
 
     fetch(`${API}/user/all`, { headers: { Authorization: `Bearer ${token}` } })
@@ -539,7 +414,7 @@ function MessagesInner() {
       })
       .catch(console.error)
       .finally(() => setLoadingConvs(false));
-  }, [token]);
+  }, [token , myId]);
 
   /* ── Auto scroll ── */
   useEffect(() => {
@@ -731,10 +606,10 @@ function MessagesInner() {
         @keyframes badgePop{from{transform:scale(.5);opacity:0}to{transform:scale(1);opacity:1}}
         .wa-conv-empty{padding:40px 20px;text-align:center;color:var(--text2);font-size:14px;}
 
-        .wa-chat{flex:1;display:flex;flex-direction:column;min-width:0;background:#efeae2;position:relative;overflow:hidden;}
+        .wa-chat{flex:1;display:flex;flex-direction:column;min-width:0;background:#efeae2;position:relative;overflow:hidden;min-height:0;}
         .wa-chat::before{content:'';position:absolute;inset:0;opacity:.08;background-image:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23000'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E");pointer-events:none;z-index:0;}
 
-        .wa-chat-hdr{background:#fff;display:flex;align-items:center;height:64px;min-height:64px;max-height:64px;flex-shrink:0;border-bottom:1px solid var(--border);position:relative;z-index:2;padding:0 12px 0 0;overflow:hidden;}
+.wa-chat-hdr{background:#fff;display:flex;align-items:center;height:64px;min-height:64px;max-height:64px;flex-shrink:0;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10;padding:0 12px 0 0;overflow:hidden;}
         .wa-back-btn{display:none;background:none;border:none;cursor:pointer;padding:0 6px;align-items:center;justify-content:center;min-width:44px;height:64px;flex-shrink:0;-webkit-tap-highlight-color:transparent;}
         .wa-hdr-avatar{width:42px;height:42px;min-width:42px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;overflow:hidden;flex-shrink:0;}
         .wa-hdr-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
@@ -746,8 +621,7 @@ function MessagesInner() {
         .wa-socket-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-right:4px;}
         .wa-socket-dot.on{background:#25d366;}
         .wa-socket-dot.off{background:#aaa;}
-
-        .wa-messages{flex:1;overflow-y:auto;padding:12px 8%;display:flex;flex-direction:column;gap:2px;position:relative;z-index:1;min-height:0;}
+        .wa-messages{flex:1;overflow-y:auto;padding:12px 8%;display:flex;flex-direction:column;gap:2px;position:relative;z-index:1;overflow-anchor:none;min-height:0;height:0;}
         .wa-messages::-webkit-scrollbar{width:3px;}
         .wa-messages::-webkit-scrollbar-thumb{background:#ccc;border-radius:2px;}
         .wa-date-lbl{text-align:center;margin:8px 0;}
@@ -772,8 +646,7 @@ function MessagesInner() {
         @keyframes slideUpWarn{from{transform:translateY(6px);opacity:0}to{transform:translateY(0);opacity:1}}
         .wa-warn-icon{font-size:16px;flex-shrink:0;}
         .wa-warn-dismiss{margin-left:auto;font-size:14px;cursor:pointer;color:#b45309;flex-shrink:0;}
-
-        .wa-input-bar{background:var(--bg);padding:8px 16px;display:flex;flex-direction:column;gap:6px;position:relative;z-index:2;flex-shrink:0;}
+.wa-input-bar{background:var(--bg);padding:8px 16px;display:flex;flex-direction:column;gap:6px;position:sticky;bottom:0;z-index:10;flex-shrink:0;}
         .wa-input-row{display:flex;align-items:center;gap:10px;}
         .wa-input-wrap{flex:1;background:#fff;border-radius:26px;display:flex;align-items:center;padding:9px 16px;gap:10px;box-shadow:0 1px 3px rgba(0,0,0,.06);transition:box-shadow .2s;}
         .wa-input-wrap.blocked{box-shadow:0 0 0 2px #ef4444;background:#fff5f5;}
@@ -826,7 +699,9 @@ function MessagesInner() {
         @media(max-width:768px){
           .wa-sidebar{position:fixed;inset:0;width:100% !important;min-width:unset;z-index:20;}
           .wa-sidebar.hidden{transform:translateX(-100%);}
-          .wa-chat{position:fixed;inset:0;z-index:15;}
+          
+       .wa-chat{position:fixed;left:0;right:0;bottom:0;top:60px;z-index:15;}
+
           .wa-chat.hidden{display:none !important;}
           .wa-back-btn{display:flex !important;}
           .wa-bubble{max-width:82%;}
