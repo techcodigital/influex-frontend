@@ -48,7 +48,7 @@ const getCreatorPlanLimits = (plan: string) => {
 // ─── Tiny in-memory cache ─────────────────────────────────────────────────────
 // Prevents duplicate API calls on route changes within TTL window
 interface CacheEntry { data: any; ts: number }
-const CACHE_TTL = 30_000; // 30 seconds
+const CACHE_TTL = 60_000; // 30 seconds
 const globalCache: Record<string, CacheEntry> = {};
 
 function cacheGet(key: string): any | null {
@@ -122,14 +122,23 @@ export default function Navbar() {
   }, []);
 
   // ─── Fetch notifications (with 30s cooldown) ──────────────────────────────
+  // const fetchUnreadCount = useCallback(async (token: string) => {
+  //   if (Date.now() - lastNotifFetchRef.current < CACHE_TTL) return;
+  //   lastNotifFetchRef.current = Date.now();
+  //   const data = await fetchCached(`${API_BASE}/notification?t=${Date.now()}`, token);
+  //   if (!data) return;
+  //   const notifs: any[] = data.notifications || data.data || [];
+  //   setUnreadCount(notifs.filter((n: any) => n.type !== "new_message" && !n.read).length);
+  // }, []);
+
   const fetchUnreadCount = useCallback(async (token: string) => {
-    if (Date.now() - lastNotifFetchRef.current < CACHE_TTL) return;
-    lastNotifFetchRef.current = Date.now();
-    const data = await fetchCached(`${API_BASE}/notification?t=${Date.now()}`, token);
-    if (!data) return;
-    const notifs: any[] = data.notifications || data.data || [];
-    setUnreadCount(notifs.filter((n: any) => n.type !== "new_message" && !n.read).length);
-  }, []);
+  if (Date.now() - lastNotifFetchRef.current < 60_000) return; // ← 60s cooldown
+  lastNotifFetchRef.current = Date.now();
+  const data = await fetchCached(`${API_BASE}/notification?t=${Date.now()}`, token);
+  if (!data) return;
+  const notifs: any[] = data.notifications || data.data || [];
+  setUnreadCount(notifs.filter((n: any) => n.type !== "new_message" && !n.read).length);
+}, []);
 
   // ─── Fetch message unread (with 30s cooldown) ─────────────────────────────
   const fetchMsgUnread = useCallback(async (token: string, parsedUser?: any) => {
@@ -217,10 +226,10 @@ export default function Navbar() {
       if (role === "influencer") fetchAppliesUsed(token, parsedUser);
     }
 
-    // Notifications: skip on notification page
-    if (!pathname?.startsWith("/notification")) {
-      fetchUnreadCount(token);
-    }
+    // // Notifications: skip on notification page
+    // if (!pathname?.startsWith("/notification")) {
+    //   fetchUnreadCount(token);
+    // }
 
     // Messages: skip on messages page
     if (!pathname?.startsWith("/messages")) {
@@ -301,7 +310,7 @@ export default function Navbar() {
     const handleVisibility = () => {
       if (document.visibilityState !== "visible") return;
       const now = Date.now();
-      if (now - lastVisibilityRef.current < 60_000) return; // 60s cooldown
+      if (now - lastVisibilityRef.current < 120_000) return; // 60s cooldown
       lastVisibilityRef.current = now;
 
       syncFromStorage();
@@ -312,7 +321,7 @@ export default function Navbar() {
       const token = parsedUser.token || localStorage.getItem("token");
       if (!token) return;
 
-      if (!pathnameRef.current.startsWith("/notification")) fetchUnreadCount(token);
+      if ( !pathnameRef.current.startsWith("/notification")) fetchUnreadCount(token);
       if (!pathnameRef.current.startsWith("/messages")) fetchMsgUnread(token, parsedUser);
     };
     document.addEventListener("visibilitychange", handleVisibility);
@@ -320,25 +329,29 @@ export default function Navbar() {
   }, [syncFromStorage, fetchUnreadCount, fetchMsgUnread]);
 
   // ─── Notification page: mark all read ────────────────────────────────────
+  // useEffect(() => {
+  //   if (!pathname?.startsWith("/notification")) return;
+  //   setUnreadCount(0);
+  //   const stored = localStorage.getItem("cb_user");
+  //   if (!stored) return;
+  //   const token = JSON.parse(stored).token || localStorage.getItem("token");
+  //   if (!token) return;
+  //   fetch(`${API_BASE}/notification?t=${Date.now()}`,
+  //      { headers: { Authorization: `Bearer ${token}` } })
+  //     .then(r => r.json())
+  //     .then(data => {
+  //       const notifs: any[] = data.notifications || data.data || [];
+  //       notifs.filter((n: any) => !n.read).forEach((n: any) => {
+  //         fetch(`${API_BASE}/notification/read/${n._id}`, {
+  //           method: "PATCH", headers: { Authorization: `Bearer ${token}` },
+  //         }).catch(() => {});
+  //       });
+  //     }).catch(() => {});
+  // }, [pathname]);
+
   useEffect(() => {
-    if (!pathname?.startsWith("/notification")) return;
-    setUnreadCount(0);
-    const stored = localStorage.getItem("cb_user");
-    if (!stored) return;
-    const token = JSON.parse(stored).token || localStorage.getItem("token");
-    if (!token) return;
-    fetch(`${API_BASE}/notification?t=${Date.now()}`,
-       { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(data => {
-        const notifs: any[] = data.notifications || data.data || [];
-        notifs.filter((n: any) => !n.read).forEach((n: any) => {
-          fetch(`${API_BASE}/notification/read/${n._id}`, {
-            method: "PATCH", headers: { Authorization: `Bearer ${token}` },
-          }).catch(() => {});
-        });
-      }).catch(() => {});
-  }, [pathname]);
+  if (pathname?.startsWith("/notification")) setUnreadCount(0);
+}, [pathname]);
 
   // ─── Messages page: clear badge ──────────────────────────────────────────
   useEffect(() => {

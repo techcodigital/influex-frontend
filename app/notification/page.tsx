@@ -537,7 +537,11 @@ export default function NotificationsPage() {
               const isRejected         = status === "rejected";
               const isPending          = !isAccepted && !isRejected;
               const showBrandActions   = isBrand && isBrandApplyNotif(n);
-              const showInviteActions  = !isBrand && n.type === "invite";
+              // const showInviteActions  = !isBrand && n.type === "invite";
+              const showInviteActions = !isBrand && (
+  n.type === "invite" ||
+  n.type?.toLowerCase().includes("invite")
+);
               const inviteStatus       = n._inviteStatus || "";
               const inviteAccepted     = inviteStatus === "accepted";
               const inviteRejected     = inviteStatus === "rejected";
