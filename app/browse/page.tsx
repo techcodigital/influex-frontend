@@ -88,13 +88,19 @@ export default function BrowsePage() {
     setUnlockedInstagrams(JSON.parse(localStorage.getItem(`unlockedIg_${uid}`) || "{}"));
   }, []);
 
-  useEffect(() => {
-    if (!token) return;
-    fetchCampaignId();
-    fetchCreators();
-    const iv = setInterval(pollAcceptedInvites, 10000);
-    return () => clearInterval(iv);
-  }, [token]);
+  // useEffect(() => {
+  //   if (!token) return;
+  //   fetchCampaignId();
+  //   fetchCreators();
+  //   const iv = setInterval(pollAcceptedInvites, 10000);
+  //   return () => clearInterval(iv);
+  // }, [token]);
+    
+   useEffect(() => {
+  if (!token) return;
+  fetchCampaignId();
+  fetchCreators();
+}, [token]);
 
   const fetchCampaignId = async () => {
     try {
