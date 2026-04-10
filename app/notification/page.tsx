@@ -141,26 +141,46 @@ export default function NotificationsPage() {
         });
       }
 
-      // ── Batch fetch sender profiles — only unique senderIds, use cache ────
+      // ── Batch fetch sender profiles — only unique senderIds,  Name ke liye comment code hatha pdega use cache ────
       const senderIds = Array.from(
         new Set(merged.map((n: any) => extractMongoId(n.sender)).filter(Boolean))
       ) as string[];
 
       if (senderIds.length > 0) {
         // Fetch only uncached ones
-        const uncached = senderIds.filter(id => !profileCache[id]);
-        await Promise.all(
-          uncached.map(id => fetchProfile(id, token)) // fills profileCache
-        );
+        // const uncached = senderIds.filter(id => !profileCache[id]);
+        // await Promise.all(
+        //   uncached.map(id => fetchProfile(id, token)) // fills profileCache
+        // );
         // Now build names map from cache
-        const names: Record<string, string> = {};
-        for (const n of merged) {
-          const sid = extractMongoId(n.sender);
-          if (sid && profileCache[sid]) {
-            names[n._id] = profileCache[sid].name || profileCache[sid].companyName || "";
-          }
-        }
-        setCreatorNames(names);
+        // Names directly from notification data — no extra API calls
+
+        // const names: Record<string, string> = {};
+        // for (const n of merged) {
+        //   const sid = extractMongoId(n.sender);
+        //   if (sid && profileCache[sid]) {
+        //     names[n._id] = profileCache[sid].name || profileCache[sid].companyName || "";
+        //   }
+        // }
+        // setCreatorNames(names);
+
+        // No profile fetching on load — names from notification data only
+const names: Record<string, string> = {};
+for (const n of merged) {
+  const name =
+    n.senderName ||
+    n.sender?.name ||
+    n.sender?.companyName ||
+    n.data?.senderName ||
+    "";
+  if (name) names[n._id] = name;
+}
+setCreatorNames(names);
+
+
+   
+
+
       }
     } catch (err) {
       console.error(err);

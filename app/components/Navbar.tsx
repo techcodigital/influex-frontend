@@ -232,11 +232,17 @@ export default function Navbar() {
     // }
 
     // Messages: skip on messages page
+    // if (!pathname?.startsWith("/messages")) {
+    //   const saved = localStorage.getItem("msg_unread_count");
+    //   if (saved !== null) setMsgUnread(Number(saved)); // show cached instantly
+    //   fetchMsgUnread(token, parsedUser);              // then refresh in bg
+    // }
     if (!pathname?.startsWith("/messages")) {
-      const saved = localStorage.getItem("msg_unread_count");
-      if (saved !== null) setMsgUnread(Number(saved)); // show cached instantly
-      fetchMsgUnread(token, parsedUser);              // then refresh in bg
-    }
+  const saved = localStorage.getItem("msg_unread_count");
+  if (saved !== null) setMsgUnread(Number(saved));
+  // sirf first load pe fetch karo, har page change pe nahi
+  if (!profileLoaded) fetchMsgUnread(token, parsedUser);
+}
   }, [pathname]);
 
   // ─── plan_updated event (same-tab, e.g. after campaign post) ─────────────
@@ -550,33 +556,33 @@ export default function Navbar() {
           {user ? (
             <div className="nav-links">
               {isInfluencer && (<>
-                <Link href="/discovery"       className={`nav-link ${isActive("/discovery") ? "active" : ""}`}>Discover</Link>
-                <Link href="/my-applications" className={`nav-link ${isActive("/my-applications") ? "active" : ""}`}>Applied Campaigns</Link>
-                <Link href="/messages"        className={`nav-link ${isActive("/messages") ? "active" : ""}`} onClick={handleMsgClick}>
+                <Link href="/discovery"  prefetch={false}      className={`nav-link ${isActive("/discovery") ? "active" : ""}`}>Discover</Link>
+                <Link href="/my-applications" prefetch={false}  className={`nav-link ${isActive("/my-applications") ? "active" : ""}`}>Applied Campaigns</Link>
+                <Link href="/messages"  prefetch={false}       className={`nav-link ${isActive("/messages") ? "active" : ""}`} onClick={handleMsgClick}>
                   Messages{msgUnread > 0 && <span className="nav-msg-badge">{msgUnread > 99 ? "99+" : msgUnread}</span>}
                 </Link>
-                <Link href="/notification"    className={`nav-link ${isActive("/notification") ? "active" : ""}`} onClick={() => setUnreadCount(0)}>
+                <Link href="/notification"  prefetch={false}   className={`nav-link ${isActive("/notification") ? "active" : ""}`} onClick={() => setUnreadCount(0)}>
                   Notifications{unreadCount > 0 && <span className="nav-notif-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
                 </Link>
               </>)}
               {isBrand && (<>
-                <Link href="/browse"       className={`nav-link ${isActive("/browse") ? "active" : ""}`}>Discover</Link>
-                <Link href="/campaigns"    className={`nav-link ${isActive("/campaigns") ? "active" : ""}`}>Campaigns</Link>
-                <Link href="/messages"     className={`nav-link ${isActive("/messages") ? "active" : ""}`} onClick={handleMsgClick}>
+                <Link href="/browse" prefetch={false}       className={`nav-link ${isActive("/browse") ? "active" : ""}`}>Discover</Link>
+                <Link href="/campaigns" prefetch={false}    className={`nav-link ${isActive("/campaigns") ? "active" : ""}`}>Campaigns</Link>
+                <Link href="/messages" prefetch={false}     className={`nav-link ${isActive("/messages") ? "active" : ""}`} onClick={handleMsgClick}>
                   Messages{msgUnread > 0 && <span className="nav-msg-badge">{msgUnread > 99 ? "99+" : msgUnread}</span>}
                 </Link>
-                <Link href="/notification" className={`nav-link ${isActive("/notification") ? "active" : ""}`} onClick={() => setUnreadCount(0)}>
+                <Link href="/notification" prefetch={false}  className={`nav-link ${isActive("/notification") ? "active" : ""}`} onClick={() => setUnreadCount(0)}>
                   Notifications{unreadCount > 0 && <span className="nav-notif-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
                 </Link>
               </>)}
               {isAdmin && (<>
-                <Link href="/admin"        className={`nav-link ${isActive("/admin") ? "active" : ""}`}>Dashboard</Link>
-                <Link href="/campaigns"    className={`nav-link ${isActive("/campaigns") ? "active" : ""}`}>Campaigns</Link>
-                <Link href="/deals"        className={`nav-link ${isActive("/deals") ? "active" : ""}`}>Deals</Link>
-                <Link href="/messages"     className={`nav-link ${isActive("/messages") ? "active" : ""}`} onClick={handleMsgClick}>
+                <Link href="/admin" prefetch={false}        className={`nav-link ${isActive("/admin") ? "active" : ""}`}>Dashboard</Link>
+                <Link href="/campaigns"prefetch={false}     className={`nav-link ${isActive("/campaigns") ? "active" : ""}`}>Campaigns</Link>
+                <Link href="/deals" prefetch={false}        className={`nav-link ${isActive("/deals") ? "active" : ""}`}>Deals</Link>
+                <Link href="/messages" prefetch={false}     className={`nav-link ${isActive("/messages") ? "active" : ""}`} onClick={handleMsgClick}>
                   Messages{msgUnread > 0 && <span className="nav-msg-badge">{msgUnread > 99 ? "99+" : msgUnread}</span>}
                 </Link>
-                <Link href="/notification" className={`nav-link ${isActive("/notification") ? "active" : ""}`} onClick={() => setUnreadCount(0)}>
+                <Link href="/notification" prefetch={false}  className={`nav-link ${isActive("/notification") ? "active" : ""}`} onClick={() => setUnreadCount(0)}>
                   Notifications{unreadCount > 0 && <span className="nav-notif-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
                 </Link>
               </>)}
@@ -662,28 +668,28 @@ export default function Navbar() {
                       </div>
 
                       <div className="nav-dd-sep" />
-                      <Link href="/upgrade" className="nav-dd-item upgrade-dd" onClick={() => setDropdownOpen(false)}>⚡ Upgrade Plan</Link>
+                      <Link href="/upgrade"prefetch={false}  className="nav-dd-item upgrade-dd" onClick={() => setDropdownOpen(false)}>⚡ Upgrade Plan</Link>
                       {isProfileIncomplete && (
-                        <Link href="/my-profile" className="nav-dd-item incomplete-dd" onClick={() => setDropdownOpen(false)}>⚠️ Complete Your Profile</Link>
+                        <Link href="/my-profile" prefetch={false}  className="nav-dd-item incomplete-dd" onClick={() => setDropdownOpen(false)}>⚠️ Complete Your Profile</Link>
                       )}
                       <div className="nav-dd-sep" />
-                      <Link href="/my-profile"    className="nav-dd-item" onClick={() => setDropdownOpen(false)}>✏️ Edit Profile</Link>
-                      <Link href="/setup-profile" className="nav-dd-item" onClick={() => setDropdownOpen(false)}>👤 View Profile</Link>
+                      <Link href="/my-profile" prefetch={false}    className="nav-dd-item" onClick={() => setDropdownOpen(false)}>✏️ Edit Profile</Link>
+                      <Link href="/setup-profile" prefetch={false}  className="nav-dd-item" onClick={() => setDropdownOpen(false)}>👤 View Profile</Link>
                       {isInfluencer && (<>
                         <div className="nav-dd-sep" />
                         <div className="nav-dd-section">My Work</div>
-                        <Link href="/deals"   className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🤝 Deals</Link>
-                        <Link href="/rewards" className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🎁 Rewards</Link>
+                        <Link href="/deals" prefetch={false}   className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🤝 Deals</Link>
+                        <Link href="/rewards" prefetch={false}  className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🎁 Rewards</Link>
                       </>)}
                       {isBrand && (<>
                         <div className="nav-dd-sep" />
                         <div className="nav-dd-section">Brand Tools</div>
-                        <Link href="/deals"          className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🤝 Deals</Link>
-                        <Link href="/campaigns/post" className="nav-dd-item" onClick={() => setDropdownOpen(false)}>📋 Post Campaign</Link>
+                        <Link href="/deals" prefetch={false}           className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🤝 Deals</Link>
+                        <Link href="/campaigns/post" prefetch={false}  className="nav-dd-item" onClick={() => setDropdownOpen(false)}>📋 Post Campaign</Link>
                       </>)}
                       {isAdmin && (<>
-                        <Link href="/admin"          className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🛡️ Admin Panel</Link>
-                        <Link href="/campaigns/post" className="nav-dd-item" onClick={() => setDropdownOpen(false)}>📋 Post Campaign</Link>
+                        <Link href="/admin" prefetch={false}           className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🛡️ Admin Panel</Link>
+                        <Link href="/campaigns/post" prefetch={false}  className="nav-dd-item" onClick={() => setDropdownOpen(false)}>📋 Post Campaign</Link>
                       </>)}
                       <div className="nav-dd-sep" />
                       <button className="nav-dd-item danger" onClick={handleLogout}>🚪 Logout</button>
@@ -709,31 +715,31 @@ export default function Navbar() {
               <Link href="/my-profile" className="nav-mobile-incomplete" onClick={() => setMobileMenuOpen(false)}>⚠️ Complete Your Profile</Link>
             )}
             <div className="nav-mobile-section">Main</div>
-            {isInfluencer && <Link href="/discovery"       className={`nav-mobile-link ${isActive("/discovery") ? "active" : ""}`}>Discover</Link>}
-            {isBrand      && <Link href="/browse"          className={`nav-mobile-link ${isActive("/browse") ? "active" : ""}`}>Discover Creators</Link>}
-            {(isBrand||isAdmin) && <Link href="/campaigns" className={`nav-mobile-link ${isActive("/campaigns") ? "active" : ""}`}>Campaigns</Link>}
-            {isInfluencer && <Link href="/my-applications" className={`nav-mobile-link ${isActive("/my-applications") ? "active" : ""}`}>Applied Campaigns</Link>}
-            <Link href="/messages" className={`nav-mobile-link ${isActive("/messages") ? "active" : ""}`} onClick={handleMsgClick}>
+            {isInfluencer && <Link href="/discovery" prefetch={false}       className={`nav-mobile-link ${isActive("/discovery") ? "active" : ""}`}>Discover</Link>}
+            {isBrand      && <Link href="/browse" prefetch={false}          className={`nav-mobile-link ${isActive("/browse") ? "active" : ""}`}>Discover Creators</Link>}
+            {(isBrand||isAdmin) && <Link href="/campaigns" prefetch={false}  className={`nav-mobile-link ${isActive("/campaigns") ? "active" : ""}`}>Campaigns</Link>}
+            {isInfluencer && <Link href="/my-applications" prefetch={false}  className={`nav-mobile-link ${isActive("/my-applications") ? "active" : ""}`}>Applied Campaigns</Link>}
+            <Link href="/messages" prefetch={false}  className={`nav-mobile-link ${isActive("/messages") ? "active" : ""}`} onClick={handleMsgClick}>
               Messages {msgUnread > 0 && <span className="nav-msg-badge">{msgUnread > 99 ? "99+" : msgUnread}</span>}
             </Link>
-            <Link href="/notification" className={`nav-mobile-link ${isActive("/notification") ? "active" : ""}`} onClick={() => setUnreadCount(0)}>
+            <Link href="/notification" prefetch={false}  className={`nav-mobile-link ${isActive("/notification") ? "active" : ""}`} onClick={() => setUnreadCount(0)}>
               Notifications {unreadCount > 0 && <span className="nav-notif-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
             </Link>
             <div className="nav-mobile-section">Work</div>
-            <Link href="/deals" className={`nav-mobile-link ${isActive("/deals") ? "active" : ""}`}>Deals</Link>
+            <Link href="/deals" prefetch={false}  className={`nav-mobile-link ${isActive("/deals") ? "active" : ""}`}>Deals</Link>
             {isInfluencer && <Link href="/rewards" className={`nav-mobile-link ${isActive("/rewards") ? "active" : ""}`}>Rewards</Link>}
             {isBrand && (<>
               <div className="nav-mobile-section">Brand Tools</div>
-              <Link href="/campaigns/post" className={`nav-mobile-link ${isActive("/campaigns/post") ? "active" : ""}`}>Post Campaign</Link>
+              <Link href="/campaigns/post" prefetch={false}  className={`nav-mobile-link ${isActive("/campaigns/post") ? "active" : ""}`}>Post Campaign</Link>
             </>)}
             {isAdmin && (<>
               <div className="nav-mobile-section">Admin</div>
-              <Link href="/admin" className={`nav-mobile-link ${isActive("/admin") ? "active" : ""}`}>Admin Panel</Link>
+              <Link href="/admin" prefetch={false}  className={`nav-mobile-link ${isActive("/admin") ? "active" : ""}`}>Admin Panel</Link>
             </>)}
             <div className="nav-mobile-section">Account</div>
-            <Link href="/upgrade"       className="nav-mobile-upgrade">⚡ Upgrade Plan</Link>
-            <Link href="/my-profile"    className={`nav-mobile-link ${isActive("/my-profile") ? "active" : ""}`}>Edit Profile</Link>
-            <Link href="/setup-profile" className={`nav-mobile-link ${isActive("/setup-profile") ? "active" : ""}`}>View Profile</Link>
+            <Link href="/upgrade" prefetch={false}       className="nav-mobile-upgrade">⚡ Upgrade Plan</Link>
+            <Link href="/my-profile" prefetch={false}    className={`nav-mobile-link ${isActive("/my-profile") ? "active" : ""}`}>Edit Profile</Link>
+            <Link href="/setup-profile" prefetch={false}  className={`nav-mobile-link ${isActive("/setup-profile") ? "active" : ""}`}>View Profile</Link>
             <button
               className="nav-mobile-link"
               style={{ color: "#ef4444", border: "none", background: "none", cursor: "pointer", textAlign: "left", width: "100%", fontFamily: "inherit" }}
