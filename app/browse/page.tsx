@@ -13,6 +13,7 @@ interface Creator {
   city?: string;
   location?: string;
   categories?: string | string[];
+  subCategories?: string[];
   followers?: number | string;
   platform?: string;
   createdAt?: string;
@@ -67,6 +68,13 @@ export default function BrowsePage() {
   const [unlockedEmails, setUnlockedEmails]         = useState<Record<string, string>>({});
   const [unlockedInstagrams, setUnlockedInstagrams] = useState<Record<string, string>>({});
   const [unlocking, setUnlocking]         = useState<string | null>(null);
+  
+  const [filterCategory, setFilterCategory] = useState("");
+const [filterSubCategory, setFilterSubCategory] = useState("");
+
+const [categories, setCategories] = useState<string[]>([]);
+const [subCategories, setSubCategories] = useState<string[]>([]);
+
   // 🔥 No-campaign modal state
   const [showNoCampaignModal, setShowNoCampaignModal] = useState(false);
 
@@ -101,6 +109,40 @@ export default function BrowsePage() {
   fetchCampaignId();
   fetchCreators();
 }, [token]);
+
+useEffect(() => {
+  if (!filterCategory) {
+    setSubCategories([]);
+    setFilterSubCategory("");
+    return;
+  }
+
+  const subSet = new Set<string>();
+
+  creators.forEach(c => {
+    const cats = Array.isArray(c.categories)
+      ? c.categories
+      : c.categories
+      ? [c.categories]
+      : [];
+
+    const subs = Array.isArray(c.subCategories)
+  ? c.subCategories
+  : c.subCategories
+  ? [c.subCategories]
+  : [];
+
+    if (cats.map(x => x.toLowerCase()).includes(filterCategory)) {
+      subs.forEach(s => {
+        if (s) subSet.add(s.toLowerCase().trim());
+      });
+    }
+  });
+
+  setSubCategories([...subSet]);
+  setFilterSubCategory("");
+}, [filterCategory, creators]);
+
 
   const fetchCampaignId = async () => {
     try {
@@ -154,6 +196,29 @@ export default function BrowsePage() {
       }));
       setCreators(list);
       creatorsRef.current = list;
+      
+      const catSet = new Set<string>();
+
+// list.forEach(c => {
+//   const cats = Array.isArray(c.categories) ? c.categories : [];
+//   cats.forEach(cat => {
+//     if (cat) catSet.add(cat.toLowerCase().trim());
+//   });
+// });
+list.forEach(c => {
+  const cats = Array.isArray(c.categories)
+    ? c.categories
+    : c.categories
+    ? [c.categories]
+    : [];
+
+  cats.forEach(cat => {
+    if (cat) catSet.add(cat.toLowerCase().trim());
+  });
+});
+
+setCategories([...catSet]);
+
       const ns = new Set<string>(), cs = new Set<string>();
       list.forEach(c => {
         const arr = Array.isArray(c.categories) ? c.categories : [c.categories as string];
@@ -434,12 +499,36 @@ const handleUnlockInstagram = async (userId: string) => {
     return String(n);
   };
 
+  // const filtered = creators.filter(c => {
+  //   const arr = Array.isArray(c.categories) ? c.categories : [c.categories as string];
+  //   const nm  = filterNiche ? arr.some(x => x?.toLowerCase() === filterNiche) : true;
+  //   const cm  = filterCity  ? (c.city || c.location || "").toLowerCase() === filterCity : true;
+  //   return nm && cm;
+  // });
+
   const filtered = creators.filter(c => {
-    const arr = Array.isArray(c.categories) ? c.categories : [c.categories as string];
-    const nm  = filterNiche ? arr.some(x => x?.toLowerCase() === filterNiche) : true;
-    const cm  = filterCity  ? (c.city || c.location || "").toLowerCase() === filterCity : true;
-    return nm && cm;
-  });
+  const cats = Array.isArray(c.categories)
+    ? c.categories
+    : c.categories
+    ? [c.categories]
+    : [];
+
+  const subs = c.subCategories || [];
+
+  const catMatch = filterCategory
+    ? cats.some(x => x?.toLowerCase() === filterCategory)
+    : true;
+
+  const subMatch = filterSubCategory
+    ? subs.some(x => x?.toLowerCase() === filterSubCategory)
+    : true;
+
+  const cityMatch = filterCity
+    ? (c.city || c.location || "").toLowerCase() === filterCity
+    : true;
+
+  return catMatch && subMatch && cityMatch;
+});
 
   return (
     <>
@@ -823,6 +912,17 @@ const handleUnlockInstagram = async (userId: string) => {
                   {gCity(modalCreator) && <div className="mo-row"><span>📍</span><span>{cap(gCity(modalCreator))}</span></div>}
                   {gCats(modalCreator).length > 0 && <div className="mo-row"><span>🎯</span><span>{gCats(modalCreator).map((c, i) => cap(c)).join(", ")}</span></div>}
 
+                  {modalCreator.subCategories && modalCreator.subCategories.length > 0 && (
+  <div className="mo-row">
+    <span>📁</span>
+    <span>
+      {Array.isArray(modalCreator.subCategories)
+        ? modalCreator.subCategories.map((s: string) => cap(s)).join(", ")
+        : cap(modalCreator.subCategories)}
+    </span>
+  </div>
+)}
+
                   {emailUnlocked ? (
                     <div className="mo-row"><span>📧</span><span className="mo-unlocked-email">{emailUnlocked}</span></div>
                   ) : (
@@ -908,11 +1008,17 @@ const handleUnlockInstagram = async (userId: string) => {
           <p className="browse-sub">Connect with creators for your brand campaigns</p>
         </div>
 
-        <div className="browse-filters">
+        {/* <div className="browse-filters">
           <select className={`bsel ${filterNiche ? "active" : ""}`} value={filterNiche} onChange={e => setFilterNiche(e.target.value)}>
             <option value="">🎯 All Niches</option>
             {niches.map((n, i) => <option key={i} value={n}>{EMOJI[n] || "✨"} {cap(n)}</option>)}
           </select>
+           
+            <select className={`bsel ${filterNiche ? "active" : ""}`} value={filterNiche} onChange={e => setFilterNiche(e.target.value)} disabled={!filterCategory}>
+            <option value="">🎯 All Niches</option>
+            {niches.map((n, i) => <option key={i} value={n}>{EMOJI[n] || "✨"} {cap(n)}</option>)}
+          </select>
+
           <select className={`bsel ${filterCity ? "active" : ""}`} value={filterCity} onChange={e => setFilterCity(e.target.value)}>
             <option value="">🏙 All Cities</option>
             {cities.map((c, i) => <option key={i} value={c}>{cap(c)}</option>)}
@@ -924,7 +1030,76 @@ const handleUnlockInstagram = async (userId: string) => {
           <button className="brefresh" onClick={fetchCreators} disabled={loading} title="Refresh creators">
             {loading ? "⏳" : "🔄"}
           </button>
-        </div>
+        </div> */}
+        <div className="browse-filters">
+
+  {/* CATEGORY */}
+  <select
+    className={`bsel ${filterCategory ? "active" : ""}`}
+    value={filterCategory}
+    onChange={e => setFilterCategory(e.target.value)}
+  >
+    <option value="">📂 All Categories</option>
+    {categories.map((c, i) => (
+      <option key={i} value={c}>{cap(c)}</option>
+    ))}
+  </select>
+
+  {/* SUBCATEGORY */}
+  <select
+    className={`bsel ${filterSubCategory ? "active" : ""}`}
+    value={filterSubCategory}
+    onChange={e => setFilterSubCategory(e.target.value)}
+    disabled={!filterCategory}  // 🔥 important
+  >
+    <option value="">📁 All SubCategories</option>
+    {subCategories.map((s, i) => (
+      <option key={i} value={s}>{cap(s)}</option>
+    ))}
+  </select>
+
+  {/* CITY */}
+  <select
+    className={`bsel ${filterCity ? "active" : ""}`}
+    value={filterCity}
+    onChange={e => setFilterCity(e.target.value)}
+  >
+    <option value="">🏙 All Cities</option>
+    {cities.map((c, i) => (
+      <option key={i} value={c}>{cap(c)}</option>
+    ))}
+  </select>
+
+  {/* CLEAR */}
+  {(filterCategory || filterSubCategory || filterCity) && (
+    <button
+      className="bclr"
+      onClick={() => {
+        setFilterCategory("");
+        setFilterSubCategory("");
+        setFilterCity("");
+      }}
+    >
+      ✕ Clear
+    </button>
+  )}
+
+  {!loading && (
+    <span className="bcnt">
+      <span>{filtered.length}</span> creators found
+    </span>
+  )}
+
+  <button
+    className="brefresh"
+    onClick={fetchCreators}
+    disabled={loading}
+    title="Refresh creators"
+  >
+    {loading ? "⏳" : "🔄"}
+  </button>
+
+</div>
 
         <div className="browse-content">
         {loading && <div className="bload"><div className="bspin" /></div>}
@@ -978,6 +1153,14 @@ const handleUnlockInstagram = async (userId: string) => {
                       {gFollowers(creator) && <span key="followers" className="cc-stat">👥 {gFollowers(creator)}</span>}
                       {gCity(creator)       && <span key="city" className="cc-stat">📍 {cap(gCity(creator))}</span>}
                       {gCats(creator)[0]    && <span key="cat" className="cc-stat">{EMOJI[gCats(creator)[0]?.toLowerCase()] || "✨"} {cap(gCats(creator)[0])}</span>}
+
+                      {creator.subCategories && creator.subCategories.length > 0 && (
+  <span className="cc-stat">
+    📁 {Array.isArray(creator.subCategories)
+      ? cap(creator.subCategories[0])
+      : cap(creator.subCategories)}
+  </span>
+)}
                     </div>
 
                     <div className="cc-acts" onClick={e => e.stopPropagation()}>
