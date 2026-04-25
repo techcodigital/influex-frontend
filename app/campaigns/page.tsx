@@ -454,7 +454,17 @@ export default function CampaignBoard() {
                       {Array.isArray(c.categories) ? c.categories.join(", ") : c.categories || "—"}
                     </div>
                   </div>
-                  <div className="cb-meta-item apps-highlight">
+                  <div className="cb-meta-item">
+                    <div className="cb-meta-label">Sub Category</div>
+                    <div className="cb-meta-val" style={{ fontSize: "12px" }}>
+                      {Array.isArray(c.subCategories) && c.subCategories.length > 0
+                        ? c.subCategories.join(", ")
+                        : typeof c.subCategories === "string" && c.subCategories
+                        ? c.subCategories
+                        : "—"}
+                    </div>
+                  </div>
+                  <div className="cb-meta-item apps-highlight" style={{ gridColumn: "1 / -1" }}>
                     <div className="cb-meta-label">Applications</div>
                     <div className="cb-meta-val">{c.applicationsCount ?? 0}</div>
                   </div>
@@ -480,7 +490,6 @@ export default function CampaignBoard() {
     </>
   );
 }
-
 
 // "use client";
 
