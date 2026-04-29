@@ -217,12 +217,18 @@ useEffect(() => {
   // ? (user._id || user.id || null)
   // : (typeof user === "string" && user ? user : null),
   //     }));
-  const list: Creator[] = rawList.map(({ phone, id, _id, user, ...rest }: any) => ({
+//   const list: Creator[] = rawList.map(({ phone, id, _id, user, ...rest }: any) => ({
+//   ...rest,
+//   _id: _id || id,
+//   // // Backend sirf "id" return karta hai — ye hi actual user ID hai invite ke liye
+//   // user: user || id || _id || null,
+//   user: (rest as any).userId || user || id || _id || null,
+// }));
+
+const list: Creator[] = rawList.map(({ phone, id, _id, user, userId, ...rest }: any) => ({
   ...rest,
   _id: _id || id,
-  // // Backend sirf "id" return karta hai — ye hi actual user ID hai invite ke liye
-  // user: user || id || _id || null,
-  user: (rest as any).userId || user || id || _id || null,
+  user: userId || user || null,  // userId pehle lo — ye actual auth ID hai
 }));
       setCreators(list);
       creatorsRef.current = list;
@@ -258,12 +264,90 @@ setCategories([...catSet]);
       });
       setNiches([...ns].filter(Boolean));
       setCities([...cs].filter(Boolean));
-    } catch (e) {
+      checkAcceptedInvites(list);
+      // setNiches([...ns].filter(Boolean));
+      // setCities([...cs].filter(Boolean));
+  //   } catch (e) {
+  //     console.error("fetchCreators:", e);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+  } catch (e) {
       console.error("fetchCreators:", e);
     } finally {
       setLoading(false);
     }
   };
+    
+  const checkAcceptedInvites = (creatorList: Creator[]) => {
+  fetch(`${API}/notification?t=${Date.now()}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  })
+  .then(r => r.ok ? r.json() : null)
+  .then(data => {
+    if (!data) return;
+    const responses = (data.data || []).filter((n: any) => n.type === "invite_response");
+    if (!responses.length) return;
+    const saved: Record<string, ConnectStatus> = JSON.parse(
+      localStorage.getItem(`connectStatus_${myIdRef.current}`) || "{}"
+    );
+    let changed = false;
+    responses.forEach((n: any) => {
+      const influencerUserId: string =
+        n.data?.influencerId ||
+        (typeof n.sender === "string" ? n.sender : n.sender?._id) || "";
+      if (!influencerUserId) return;
+      const isAccepted = n.message?.toLowerCase().includes("accepted");
+      const newStatus: ConnectStatus = isAccepted ? "accepted" : "pending";
+      
+      // Match karo — user field ya _id dono se try karo
+      const matched = creatorList.find(c => {
+        const u = (c as any).user;
+        const userIdFromCreator = typeof u === "object" ? (u?._id || u?.id || "") : (u || "");
+        return userIdFromCreator === influencerUserId || c._id === influencerUserId;
+      });
+      
+      if (!matched) return;
+      if (saved[matched._id] !== newStatus) { saved[matched._id] = newStatus; changed = true; }
+    });
+    if (changed) saveStatus(saved);
+  })
+  .catch(() => {});
+};
+
+  // const checkAcceptedInvites = (creatorList: Creator[]) => {
+  //   fetch(`${API}/notification?t=${Date.now()}`, {
+  //     headers: { Authorization: `Bearer ${token}` }
+  //   })
+  //   .then(r => r.ok ? r.json() : null)
+  //   .then(data => {
+  //     if (!data) return;
+  //     const responses = (data.data || []).filter((n: any) => n.type === "invite_response");
+  //     if (!responses.length) return;
+  //     const saved: Record<string, ConnectStatus> = JSON.parse(
+  //       localStorage.getItem(`connectStatus_${myIdRef.current}`) || "{}"
+  //     );
+  //     let changed = false;
+  //     responses.forEach((n: any) => {
+  //       const influencerUserId: string =
+  //         n.data?.influencerId ||
+  //         (typeof n.sender === "string" ? n.sender : n.sender?._id) || "";
+  //       if (!influencerUserId) return;
+  //       const isAccepted = n.message?.toLowerCase().includes("accepted");
+  //       const newStatus: ConnectStatus = isAccepted ? "accepted" : "pending";
+  //       const matched = creatorList.find(c => {
+  //         const u = (c as any).user;
+  //         const uid = typeof u === "object" ? (u?._id || "") : (u || "");
+  //         return uid === influencerUserId || c._id === influencerUserId;
+  //       });
+  //       if (!matched) return;
+  //       if (saved[matched._id] !== newStatus) { saved[matched._id] = newStatus; changed = true; }
+  //     });
+  //     if (changed) saveStatus(saved);
+  //   })
+  //   .catch(() => {});
+  // };
 
   const saveStatus = (status: Record<string, ConnectStatus>) => {
     const sid = myIdRef.current || myId;
