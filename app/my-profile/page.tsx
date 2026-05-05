@@ -267,13 +267,20 @@ export default function SetupProfile() {
     });
   };
 
-  const handleFileSelect = (file: File) => {
-    setImageError(""); setImageSuccess(false);
-    if (file.size > 5 * 1024 * 1024) { setImageError("The image must be smaller than 5MB."); return; }
-    const reader = new FileReader();
-    reader.onload = () => setCropSrc(reader.result as string);
-    reader.readAsDataURL(file);
-  };
+  // const handleFileSelect = (file: File) => {
+  //   setImageError(""); setImageSuccess(false);
+  //   if (file.size > 5 * 1024 * 1024) { setImageError("The image must be smaller than 5MB."); return; }
+  //   const reader = new FileReader();
+  //   reader.onload = () => setCropSrc(reader.result as string);
+  //   reader.readAsDataURL(file);
+  // };
+  
+     const handleFileSelect = (file: File) => {
+  setImageError(""); setImageSuccess(false);
+  const reader = new FileReader();
+  reader.onload = () => setCropSrc(reader.result as string);
+  reader.readAsDataURL(file);
+};
 
   const handleCropDone = async (blob: Blob) => {
     setCropSrc(null);
@@ -301,7 +308,7 @@ export default function SetupProfile() {
         setPreview(data.url);
         setImageSuccess(true);
       } else {
-        setImageError(data.message || "Upload fail hua");
+        setImageError(data.message || "Upload failed ");
         setPreview(null);
         handleChange("profileImage", "");
       }
@@ -464,7 +471,7 @@ export default function SetupProfile() {
                   <input type="file" hidden accept="image/*" disabled={uploading}
                     onChange={(e) => e.target.files && handleFileSelect(e.target.files[0])} />
                 </label>
-                <span className="pp-hint">JPG, PNG · Max 5MB</span>
+                <span className="pp-hint">JPG, PNG</span>
                 {uploading       && <span style={{ fontSize:"12px", color:"#4f46e5" }}>⏳ Uploading...</span>}
                 {imageSuccess && !uploading && <span className="pp-success">✅ Image uploaded</span>}
                 {imageError  && <span className="pp-error">{imageError}</span>}
