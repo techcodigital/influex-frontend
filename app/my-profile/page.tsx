@@ -466,7 +466,7 @@ export default function SetupProfile() {
                       ? <img src={preview} alt="avatar" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
                       : <div className="pp-avatar-placeholder"><div>📷</div><div>Add Photo</div></div>
                     }
-                    <div className="pp-avatar-hover">{uploading ? "Uploading..." : "Change"}</div>
+                    <div className="pp-avatar-hover">{uploading ? "Uploading...." : "Change"}</div>
                   </div>
                   <input type="file" hidden accept="image/*" disabled={uploading}
                     onChange={(e) => e.target.files && handleFileSelect(e.target.files[0])} />
