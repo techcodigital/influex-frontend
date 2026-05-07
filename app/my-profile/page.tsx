@@ -303,15 +303,24 @@ export default function SetupProfile() {
         setImageError(`Server error (${res.status})`);
         setPreview(null); return;
       }
-      if (data.success && data.url) {
-        handleChange("profileImage", data.url);
-        setPreview(data.url);
-        setImageSuccess(true);
-      } else {
-        setImageError(data.message || "Upload failed ");
-        setPreview(null);
-        handleChange("profileImage", "");
-      }
+      if (data.success && data.data?.url) {
+  handleChange("profileImage", data.data.url);
+  setPreview(data.data.url);
+  setImageSuccess(true);
+} else {
+  setImageError(data.message || "Upload failed");
+  setPreview(null);
+  handleChange("profileImage", "");
+}
+      // if (data.success && data.url) {
+      //   handleChange("profileImage", data.url);
+      //   setPreview(data.url);
+      //   setImageSuccess(true);
+      // } else {
+      //   setImageError(data.message || "Upload failed ");
+      //   setPreview(null);
+      //   handleChange("profileImage", "");
+      // }
     } catch {
       setImageError("Network error — The app is unable to connect to the server.");
       setPreview(null);
