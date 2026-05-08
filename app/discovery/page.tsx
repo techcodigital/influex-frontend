@@ -207,7 +207,8 @@ export default function DiscoveryPage() {
         .disc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px;padding:0 40px 32px}
         @media(max-width:600px){.disc-grid{grid-template-columns:1fr;padding:0 16px 24px;gap:14px}}
 
-        .disc-card{background:#fff;border-radius:18px;border:1.5px solid #ebebeb;padding:22px;transition:all .2s;cursor:pointer;animation:fadeUp .3s ease both}
+        .disc-card{background:#fff;border-radius:18px;border:1.5px solid #ebebeb;padding:22px;transition:all .2s;cursor:pointer;animation:fadeUp .3s ease both;display: flex;
+  flex-direction: column;}
         .disc-card:hover{border-color:#c7d2fe;box-shadow:0 8px 30px rgba(79,70,229,.08);transform:translateY(-2px)}
 
         .disc-card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:10px}
@@ -228,7 +229,7 @@ export default function DiscoveryPage() {
         .disc-subcat{padding:3px 10px;border-radius:100px;background:#f0fdf4;font-size:11px;color:#15803d;font-weight:600;border:1px solid #bbf7d0}
         .disc-tag-divider{width:1px;height:14px;background:#e5e5e5;margin:0 2px;align-self:center}
 
-        .disc-apply-btn{width:100%;padding:11px;border-radius:11px;font-size:13px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;border:none;cursor:pointer;transition:all .2s;background:#4f46e5;color:#fff}
+        .disc-apply-btn{width:100%;padding:11px;border-radius:11px;font-size:13px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;border:none;cursor:pointer;transition:all .2s;background:#4f46e5;color:#fff;margin-top:auto}
         .disc-apply-btn:hover{background:#4338ca;transform:translateY(-1px)}
         .disc-btn-applied{background:#f0fdf4!important;color:#16a34a!important;border:1.5px solid #bbf7d0!important}
         .disc-btn-applied:hover{background:#dcfce7!important;transform:none!important}
@@ -280,7 +281,7 @@ export default function DiscoveryPage() {
             value={selectedSubCategory}
             onChange={e => setSelectedSubCategory(e.target.value)}
           >
-            <option value="">🏷 All Sub Categories</option>
+            <option value=""> All Sub Categories</option>
             {subCategories.map((sc, i) => (
               <option key={i} value={sc}>{sc}</option>
             ))}
