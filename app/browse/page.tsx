@@ -677,8 +677,8 @@ const handleUnlockInstagram = async (userId: string) => {
         .brefresh:disabled{opacity:0.5;cursor:not-allowed}
         .bgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px;padding:0 40px 48px}
         @media(max-width:600px){.bgrid{grid-template-columns:1fr;padding:0 16px 32px;gap:14px}}
-
-        .cc{background:#fff;border-radius:20px;border:1.5px solid #ebebeb;overflow:hidden;transition:all 0.22s;position:relative;cursor:pointer}
+         .cc{background:#fff;border-radius:20px;border:1.5px solid #ebebeb;overflow:hidden;transition:all 0.22s;position:relative;cursor:pointer;display:flex;flex-direction:column}
+        // .cc{background:#fff;border-radius:20px;border:1.5px solid #ebebeb;overflow:hidden;transition:all 0.22s;position:relative;cursor:pointer}
         .cc:hover{border-color:#c7d2fe;box-shadow:0 8px 32px rgba(79,70,229,0.1);transform:translateY(-3px)}
         .cc-top{background:linear-gradient(135deg,#eef2ff,#f5f3ff);padding:28px 24px 20px;display:flex;flex-direction:column;align-items:center;text-align:center}
         .cc-av{width:76px;height:76px;border-radius:50%;border:3px solid #fff;box-shadow:0 4px 16px rgba(79,70,229,0.15);object-fit:cover;display:block;margin-bottom:12px}
@@ -687,11 +687,16 @@ const handleUnlockInstagram = async (userId: string) => {
         .cc-cats{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;margin-top:8px}
         .cc-cat{padding:3px 9px;border-radius:100px;background:rgba(79,70,229,0.08);color:#4f46e5;font-size:11px;font-weight:600}
         .cc-lock{font-size:10px;color:#c4b5fd;margin-top:6px}
-        .cc-body{padding:16px 20px 20px}
-        .cc-bio{font-size:13px;color:#64748b;line-height:1.65;margin-bottom:14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:40px}
-        .cc-stats{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
-        .cc-stat{background:#f8fafc;border-radius:8px;padding:5px 10px;font-size:12px;color:#64748b;font-weight:500}
-        .cc-acts{display:flex;gap:8px}
+        .cc-body{padding:16px 20px 20px;display:flex;flex-direction:column;flex:1}
+.cc-bio{font-size:13px;color:#64748b;line-height:1.65;margin-bottom:14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:40px;flex:1}
+        // .cc-body{padding:16px 20px 20px}
+        // .cc-bio{font-size:13px;color:#64748b;line-height:1.65;margin-bottom:14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:40px}
+        // .cc-stats{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+        // .cc-stat{background:#f8fafc;border-radius:8px;padding:5px 10px;font-size:12px;color:#64748b;font-weight:500}
+        // .cc-acts{display:flex;gap:8px}
+        .cc-stats{display:none}
+.cc-acts{display:flex;gap:8px;margin-top:8px}
+
 
         .cbtn{border-radius:11px;font-size:13px;font-weight:700;font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;transition:all 0.2s;border:none}
         .cbtn-connect{flex:1;padding:11px;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;box-shadow:0 2px 10px rgba(79,70,229,0.3)}
