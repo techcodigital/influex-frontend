@@ -132,13 +132,33 @@ export default function Navbar() {
   //   setUnreadCount(notifs.filter((n: any) => n.type !== "new_message" && !n.read).length);
   // }, []);
 
-  const fetchUnreadCount = useCallback(async (token: string) => {
-  if (Date.now() - lastNotifFetchRef.current < 60_000) return; // ← 60s cooldown
+//   const fetchUnreadCount = useCallback(async (token: string) => {
+//   if (Date.now() - lastNotifFetchRef.current < 60_000) return; // ← 60s cooldown
+//   lastNotifFetchRef.current = Date.now();
+//   const data = await fetchCached(`${API_BASE}/notification?t=${Date.now()}`, token);
+//   if (!data) return;
+//   const notifs: any[] = data.notifications || data.data || [];
+//   setUnreadCount(notifs.filter((n: any) => n.type !== "new_message" && !n.read).length);
+// }, []);
+
+// NAYA — yeh lagao
+const fetchUnreadCount = useCallback(async (token: string) => {
+  if (Date.now() - lastNotifFetchRef.current < 60_000) return;
   lastNotifFetchRef.current = Date.now();
   const data = await fetchCached(`${API_BASE}/notification?t=${Date.now()}`, token);
   if (!data) return;
   const notifs: any[] = data.notifications || data.data || [];
-  setUnreadCount(notifs.filter((n: any) => n.type !== "new_message" && !n.read).length);
+  
+  // localStorage mein jo IDs read ho chuki hain unhe bhi filter karo
+  const locallyRead: string[] = JSON.parse(
+    localStorage.getItem("cb_read_notif_ids") || "[]"
+  );
+  
+  const count = notifs.filter(
+    (n: any) => n.type !== "new_message" && !n.read && !locallyRead.includes(n._id)
+  ).length;
+  
+  setUnreadCount(count);
 }, []);
 
   // ─── Fetch message unread (with 30s cooldown) ─────────────────────────────
@@ -278,7 +298,21 @@ if (parsedUser.emailVerified === false) {
     if (typeof window === "undefined") return;
 
     const handleStorage = (e: StorageEvent) => {
+      // if (e.key === "notif_all_read") setUnreadCount(0);
       if (e.key === "notif_all_read") setUnreadCount(0);
+// ↓ yeh add karo
+if (e.key === "cb_read_notif_ids") {
+  const readIds: string[] = JSON.parse(e.newValue || "[]");
+  setUnreadCount(prev => {
+    // Cached notification list se recalculate karo
+    const cached = cacheGet(`${API_BASE}/notification?t=${Date.now()}`);
+    if (!cached) return Math.max(0, prev - 1);
+    const notifs: any[] = cached.notifications || cached.data || [];
+    return notifs.filter(
+      (n: any) => n.type !== "new_message" && !n.read && !readIds.includes(n._id)
+    ).length;
+  });
+}
       if (e.key === "notif_unread_count" && e.newValue !== null) setUnreadCount(Number(e.newValue));
       if (e.key === "cb_user_bits"       && e.newValue !== null) setBits(Number(e.newValue));
       if (e.key === "cb_user" && e.newValue) {
@@ -592,7 +626,7 @@ if (parsedUser.emailVerified === false) {
               {isAdmin && (<>
                 <Link href="/admin" prefetch={false}        className={`nav-link ${isActive("/admin") ? "active" : ""}`}>Dashboard</Link>
                 <Link href="/campaigns"prefetch={false}     className={`nav-link ${isActive("/campaigns") ? "active" : ""}`}>Campaigns</Link>
-                <Link href="/deals" prefetch={false}        className={`nav-link ${isActive("/deals") ? "active" : ""}`}>Deals</Link>
+                {/* <Link href="/deals" prefetch={false}        className={`nav-link ${isActive("/deals") ? "active" : ""}`}>Deals</Link> */}
                 <Link href="/messages" prefetch={false}     className={`nav-link ${isActive("/messages") ? "active" : ""}`} onClick={handleMsgClick}>
                   Messages{msgUnread > 0 && <span className="nav-msg-badge">{msgUnread > 99 ? "99+" : msgUnread}</span>}
                 </Link>
@@ -692,13 +726,13 @@ if (parsedUser.emailVerified === false) {
                       {isInfluencer && (<>
                         <div className="nav-dd-sep" />
                         <div className="nav-dd-section">My Work</div>
-                        <Link href="/deals" prefetch={false}   className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🤝 Deals</Link>
+                        {/* <Link href="/deals" prefetch={false}   className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🤝 Deals</Link> */}
                         <Link href="/rewards" prefetch={false}  className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🎁 Rewards</Link>
                       </>)}
                       {isBrand && (<>
                         <div className="nav-dd-sep" />
                         <div className="nav-dd-section">Brand Tools</div>
-                        <Link href="/deals" prefetch={false}           className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🤝 Deals</Link>
+                        {/* <Link href="/deals" prefetch={false}           className="nav-dd-item" onClick={() => setDropdownOpen(false)}>🤝 Deals</Link> */}
                         <Link href="/campaigns/post" prefetch={false}  className="nav-dd-item" onClick={() => setDropdownOpen(false)}>📋 Post Campaign</Link>
                       </>)}
                       {isAdmin && (<>
@@ -740,7 +774,7 @@ if (parsedUser.emailVerified === false) {
               Notifications {unreadCount > 0 && <span className="nav-notif-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
             </Link>
             <div className="nav-mobile-section">Work</div>
-            <Link href="/deals" prefetch={false}  className={`nav-mobile-link ${isActive("/deals") ? "active" : ""}`}>Deals</Link>
+            {/* <Link href="/deals" prefetch={false}  className={`nav-mobile-link ${isActive("/deals") ? "active" : ""}`}>Deals</Link> */}
             {isInfluencer && <Link href="/rewards" className={`nav-mobile-link ${isActive("/rewards") ? "active" : ""}`}>Rewards</Link>}
             {isBrand && (<>
               <div className="nav-mobile-section">Brand Tools</div>

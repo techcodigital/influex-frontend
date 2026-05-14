@@ -131,7 +131,23 @@ export default function NotificationsPage() {
 
       // ── Mark all unread as read in one go (fire-and-forget) ──────────────
       const unreadIds = merged.filter((n: any) => !n.read).map((n: any) => n._id);
+      // if (unreadIds.length > 0) {
       if (unreadIds.length > 0) {
+  // ── Yeh naya code add karo ──────────────────────────────
+  const existingRead: string[] = JSON.parse(
+    localStorage.getItem("cb_read_notif_ids") || "[]"
+  );
+  const allReadIds = Array.from(new Set([...existingRead, ...unreadIds]));
+  localStorage.setItem("cb_read_notif_ids", JSON.stringify(allReadIds));
+  // ────────────────────────────────────────────────────────
+  
+  localStorage.setItem("notif_all_read", "true");
+  window.dispatchEvent(new StorageEvent("storage", { key: "notif_all_read", newValue: "true" }));
+  // aur yeh bhi fire karo taaki Navbar turant update ho
+  window.dispatchEvent(new StorageEvent("storage", { 
+    key: "cb_read_notif_ids", 
+    newValue: JSON.stringify(allReadIds) 
+  }));
         // Optimistically mark all read in local state + localStorage
         localStorage.setItem("notif_all_read", "true");
         window.dispatchEvent(new StorageEvent("storage", { key: "notif_all_read", newValue: "true" }));
